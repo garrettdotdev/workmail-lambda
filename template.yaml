@@ -1,0 +1,164 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >
+  Serverless application to automate AWS WorkMail creation and cancellation.
+
+Resources:
+  SnsBounceTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: "SES Bounce Notifications"
+      TopicName: Bounce
+
+  SnsComplaintTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: "SES Complaint Notifications"
+      TopicName: Complaint
+
+  SnsDeliveryTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: "SES Delivery Notifications"
+      TopicName: Delivery
+
+  KeapApiKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: prod/apikeys/keap
+      Description: "Keap API key"
+
+  CreateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      MemorySize: 256
+      Timeout: 30
+      CodeUri: workmail_create/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Events:
+        CreateApi:
+          Type: Api
+          Properties:
+            Path: /workmail/create
+            Method: post
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - rds-data:ExecuteStatement
+              Resource:
+                - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ssm:/rds/rfsb/db_secret_arn}"
+                - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${ssm:/rds/rfsb/db_cluster_arn}"
+              Condition:
+                StringEqualsIfExists:
+                  secretsmanager:VersionStage: "AWSCURRENT"
+            - Effect: Allow
+              Action: ses:SetIdentityNotificationTopic
+              Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Sub "${ssm:/rds/rfsb/db_secret_arn}"
+          DB_CLUSTER_ARN: !Sub "${ssm:/rds/rfsb/db_cluster_arn}"
+          DATABASE_NAME: !Sub "${ssm:/rds/rfsb/db_name}"
+          SNS_BOUNCE_ARN: !Ref SnsBounceTopic
+          SNS_COMPLAINT_ARN: !Ref SnsComplaintTopic
+          SNS_DELIVERY_ARN: !Ref SnsDeliveryTopic
+          ORGANIZATION_ID: !ImportValue WorkMailOrganizationId
+          KEAP_TAG: 3153
+          KEAP_API_KEY: !Ref KeapApiKeySecret
+          KEAP_BASE_URL: "https://api.infusionsoft.com/crm/rest/v1/"
+
+
+  CancelFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      MemorySize: 256
+      Timeout: 30
+      CodeUri: workmail_cancel/
+      Handler: app.lambda_handler
+      Runtime: python3.12
+      Events:
+        CancelApi:
+          Type: Api
+          Properties:
+            Path: /workmail/cancel
+            Method: post
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - rds-data:ExecuteStatement
+              Resource:
+                - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ssm:/rds/rfsb/db_secret_arn}"
+                - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${ssm:/rds/rfsb/db_cluster_arn}"
+              Condition:
+                StringEqualsIfExists:
+                  secretsmanager:VersionStage: "AWSCURRENT"
+            - Effect: Allow
+              Action: ses:SetIdentityNotificationTopic
+              Resource: !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/*"
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Sub "${ssm:/rds/rfsb/db_secret_arn}"
+          DB_CLUSTER_ARN: !Sub "${ssm:/rds/rfsb/db_cluster_arn}"
+          DATABASE_NAME: !Sub "${ssm:/rds/rfsb/db_name}"
+          SNS_BOUNCE_ARN: !Ref SnsBounceTopic
+          SNS_COMPLAINT_ARN: !Ref SnsComplaintTopic
+          SNS_DELIVERY_ARN: !Ref SnsDeliveryTopic
+          ORGANIZATION_ID: !ImportValue WorkMailOrganizationId
+
+Outputs:
+  OrganizationId:
+    Description: The ID of the created WorkMail organization
+    Value: !GetAtt WorkMailOrg.OrganizationId
+    Export: WorkMailOrganizationId
+
+  SnsBounceTopicArn:
+    Description: ARN of the Bounce SNS Topic
+    Value: !Ref SnsBounceTopic
+    Export:
+      Name: SnsBounceTopicArn
+
+  SnsComplaintTopicArn:
+    Description: ARN of the Complaint SNS Topic
+    Value: !Ref SnsComplaintTopic
+    Export:
+      Name: SnsComplaintTopicArn
+
+  SnsDeliveryTopicArn:
+    Description: ARN of the Delivery SNS Topic
+    Value: !Ref SnsDeliveryTopic
+    Export:
+      Name: SnsDeliveryTopicArn
+
+  CreateApiUrl:
+    Description: URL for the Create API
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/workmail/create"
+    Export:
+      Name: CreateApiUrl
+
+  CancelApiUrl:
+    Description: URL for the Cancel API
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/workmail/cancel"
+    Export:
+      Name: CancelApiUrl
+
+  CreateFunctionArn:
+    Description: ARN of the Create Lambda Function
+    Value: !GetAtt CreateFunction.Arn
+    Export:
+      Name: CreateFunctionArn
+
+  CancelFunctionArn:
+    Description: ARN of the Cancel Lambda Function
+    Value: !GetAtt CancelFunction.Arn
+    Export:
+      Name: CancelFunctionArn

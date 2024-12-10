@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "properties": {
+    "contact_id": {
+      "type": "integer"
+    },
+    "appname": {
+      "type": "string"
+    },
+    "vanity_name": {
+      "type": "string"
+    }
+  },
+  "required": ["contact_id", "appname", "vanity_name"],
+  "additionalProperties": false
+}
