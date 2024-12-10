@@ -4,7 +4,8 @@
 
 This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders:
 
-- `workmail_cancel` - Code for the application's Lambda function.
+- `workmail_create` - Code for the 'create' endpoint Lambda.
+- `workmail_cancel` - Code for the 'cancel' endpoint Lambda.
 - `events` - Invocation events that you can use to invoke the function.
 - `tests` - Unit tests for the application code.
 - `template.yaml` - A template that defines the application's AWS resources.
@@ -18,3 +19,5 @@ This project is licensed under the Apache 2.0 License.
 ## Development Status
 
 This project is still in development.
+
+*Last updated: 10 Dec 2024*
