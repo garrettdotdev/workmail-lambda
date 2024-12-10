@@ -1,4 +1,6 @@
 import json
+import os
+
 import jsonschema
 from jsonschema import validate
 import boto3
@@ -22,6 +24,8 @@ def get_aws_clients(region_name: str) -> Dict[str, Any]:
 
 
 def load_schema(schema_path: str) -> Dict[str, Any]:
+    pwd = os.path.dirname(os.path.abspath(__file__))
+    schema_path = f"{pwd}/{schema_path}"
     try:
         with open(schema_path) as schema_file:
             return json.load(schema_file)
