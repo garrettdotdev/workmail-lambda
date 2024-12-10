@@ -9,13 +9,16 @@ import requests
 import logging
 from workmail_create.config import get_config
 from botocore.exceptions import ClientError, BotoCoreError
+from typing import Dict, Any, List, Tuple
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def add_contact_to_group(contact_id, tag_id, config):
+def add_contact_to_group(
+    contact_id: int, tag_id: int, config: Dict[str, str]
+) -> Dict[str, Any]:
     """Add contact to a group."""
     try:
         keap_base_url = config["KEAP_BASE_URL"]
@@ -44,15 +47,15 @@ def add_contact_to_group(contact_id, tag_id, config):
 
 
 def create_workmail_stack(
-    org_name,
-    vanity_name,
-    email_username,
-    display_name,
-    password,
-    first_name,
-    last_name,
-    cloudformation_client,
-):
+    org_name: str,
+    vanity_name: str,
+    email_username: str,
+    display_name: str,
+    password: str,
+    first_name: str,
+    last_name: str,
+    cloudformation_client: Any,
+) -> str:
     """Create a WorkMail stack using CloudFormation."""
     try:
         parameters = [
@@ -85,13 +88,13 @@ def create_workmail_stack(
         raise
 
 
-def generate_random_password(length=12):
+def generate_random_password(length: int = 12) -> str:
     """Generate a random password."""
     characters = string.ascii_letters + string.digits + "!@#$%^&*()"
     return "".join(random.choice(characters) for _ in range(length))
 
 
-def get_aws_clients():
+def get_aws_clients() -> Dict[str, Any]:
     return {
         "rds_client": boto3.client("rds-data"),
         "cloudformation_client": boto3.client("cloudformation"),
@@ -100,7 +103,9 @@ def get_aws_clients():
     }
 
 
-def get_dns_records(domain_name, ses_client, workmail_client, config):
+def get_dns_records(
+    domain_name: str, ses_client: Any, workmail_client: Any, config: Dict[str, str]
+) -> List[Dict[str, str]]:
     """Get DNS records for a domain."""
     dns_records = []
     try:
@@ -153,7 +158,9 @@ def get_dns_records(domain_name, ses_client, workmail_client, config):
     return dns_records
 
 
-def query_rds(contact_id, appname, rds_client, config):
+def query_rds(
+    contact_id: int, appname: str, rds_client: Any, config: Dict[str, str]
+) -> Tuple[str, str]:
     """Query RDS for customer information."""
     try:
         db_secret_arn = config["DB_SECRET_ARN"]
@@ -191,8 +198,13 @@ def query_rds(contact_id, appname, rds_client, config):
 
 
 def register_workmail_stack(
-    ownerid, email_username, vanity_name, stack_id, rds_client, config
-):
+    ownerid: int,
+    email_username: str,
+    vanity_name: str,
+    stack_id: str,
+    rds_client: Any,
+    config: Dict[str, str],
+) -> None:
     """Register a WorkMail stack in the database."""
     try:
         db_secret_arn = config["DB_SECRET_ARN"]
@@ -222,7 +234,9 @@ def register_workmail_stack(
         raise
 
 
-def set_ses_notifications(identity, ses_client, config):
+def set_ses_notifications(
+    identity: str, ses_client: Any, config: Dict[str, str]
+) -> None:
     """Set SES notifications for an identity."""
     try:
         sns_bounce_arn = config["SNS_BOUNCE_ARN"]
@@ -252,7 +266,9 @@ def set_ses_notifications(identity, ses_client, config):
         raise
 
 
-def update_contact(contact_id, custom_fields, config):
+def update_contact(
+    contact_id: int, custom_fields: List[Dict[str, str]], config: Dict[str, str]
+) -> Dict[str, Any]:
     """Update contact with custom fields."""
     try:
         keap_base_url = config["KEAP_BASE_URL"]
@@ -276,7 +292,7 @@ def update_contact(contact_id, custom_fields, config):
         raise
 
 
-def lambda_handler(event, context):
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda function handler."""
     try:
         config = get_config()
