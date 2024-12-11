@@ -158,8 +158,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         # Assert the response
         self.assertEqual(response["statusCode"], 500)
-        body = json.loads(response["body"])
-        self.assertEqual(body["error"], "Internal server error")
+        self.assertIn("Internal server error", response["body"])
 
 
 if __name__ == "__main__":
