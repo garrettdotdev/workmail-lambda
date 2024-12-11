@@ -1,13 +1,13 @@
 import json
 import os
-
 import jsonschema
 from jsonschema import validate
 import boto3
 import logging
-from workmail_cancel.config import get_config
 from botocore.exceptions import ClientError, BotoCoreError
 from typing import Dict, Any
+from workmail_cancel.config import get_config
+from workmail_common.utils import load_schema, handle_error
 
 # Initialize logging
 logger = logging.getLogger(__name__)
@@ -21,20 +21,6 @@ def get_aws_clients(region_name: str) -> Dict[str, Any]:
             "cloudformation", region_name=region_name
         ),
     }
-
-
-def load_schema(schema_path: str) -> Dict[str, Any]:
-    pwd = os.path.dirname(os.path.abspath(__file__))
-    schema_path = f"{pwd}/{schema_path}"
-    try:
-        with open(schema_path) as schema_file:
-            return json.load(schema_file)
-    except FileNotFoundError:
-        logger.error(f"Schema file not found: {schema_path}")
-        raise
-    except json.JSONDecodeError as e:
-        logger.error(f"Error decoding JSON schema: {e}")
-        raise
 
 
 def query_workmail_stack(
@@ -87,33 +73,14 @@ def delete_workmail_stack(stack_id: str, cloudformation_client: Any) -> None:
         raise
 
 
-def handle_error(e: Exception) -> Dict[str, Any]:
-    if isinstance(e, jsonschema.exceptions.ValidationError):
-        logger.error(f"Input validation error: {e.message}")
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": f"Invalid input: {e.message}"}),
-        }
-    elif isinstance(e, json.JSONDecodeError):
-        logger.error(f"JSON decode error: {e.msg}")
-        return {"statusCode": 400, "body": json.dumps({"error": "Invalid JSON format"})}
-    elif isinstance(e, (ClientError, BotoCoreError)):
-        logger.error(f"AWS error occurred: {e}")
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
-    elif isinstance(e, ValueError):
-        logger.error(f"Value error occurred: {e}")
-        return {"statusCode": 400, "body": json.dumps({"error": str(e)})}
-    else:
-        logger.error(f"Unexpected error occurred: {e}")
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
-
-
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     try:
         config = get_config()
         aws_clients = get_aws_clients(region_name="us-east-1")
 
-        input_schema = load_schema("schemas/input_schema.json")
+        pwd = os.path.dirname(os.path.abspath(__file__))
+        schema_path = f"{pwd}/schemas/input_schema.json"
+        input_schema = load_schema(schema_path)
 
         body = json.loads(event["body"])
         validate(instance=body, schema=input_schema)

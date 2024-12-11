@@ -7,9 +7,11 @@ import tldextract
 import os
 import requests
 import logging
-from workmail_create.config import get_config
 from botocore.exceptions import ClientError, BotoCoreError
+from jsonschema import validate
 from typing import Dict, Any, List, Tuple
+from workmail_create.config import get_config
+from workmail_common.utils import load_schema, handle_error
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -36,13 +38,7 @@ def add_contact_to_group(
             )
         logger.info(f"Added contact {contact_id} to tag {tag_id}")
         return response.json()
-    except requests.RequestException as e:
-        logger.error(f"HTTP request failed: {e}")
-        raise
     except Exception as e:
-        logger.error(
-            f"Unexpected error adding contact {contact_id} to tag {tag_id}: {e}"
-        )
         raise
 
 
@@ -80,11 +76,7 @@ def create_workmail_stack(
                 Capabilities=["CAPABILITY_NAMED_IAM"],
             )
         return response["StackId"]
-    except (ClientError, BotoCoreError) as e:
-        logger.error(f"Failed to create WorkMail stack: {e}")
-        raise
     except Exception as e:
-        logger.error(f"Unexpected error creating WorkMail stack: {e}")
         raise
 
 
@@ -149,11 +141,7 @@ def get_dns_records(
                     "Value": record["Value"],
                 }
             )
-    except (ClientError, BotoCoreError) as e:
-        logger.error(f"Failed to get DNS records for {domain_name}: {e}")
-        raise
     except Exception as e:
-        logger.error(f"Unexpected error getting DNS records for {domain_name}: {e}")
         raise
     return dns_records
 
@@ -189,11 +177,7 @@ def query_rds(
         first_name = response["records"][0][0]["stringValue"]
         last_name = response["records"][0][1]["stringValue"]
         return first_name, last_name
-    except (ClientError, BotoCoreError) as e:
-        logger.error(f"Failed to query RDS: {e}")
-        raise
     except Exception as e:
-        logger.error(f"Unexpected error querying RDS: {e}")
         raise
 
 
@@ -226,11 +210,7 @@ def register_workmail_stack(
                 {"name": "stack_id", "value": {"stringValue": stack_id}},
             ],
         )
-    except (ClientError, BotoCoreError) as e:
-        logger.error(f"Failed to register WorkMail stack: {e}")
-        raise
     except Exception as e:
-        logger.error(f"Unexpected error registering WorkMail stack: {e}")
         raise
 
 
@@ -258,11 +238,7 @@ def set_ses_notifications(
                 NotificationType=notification_type,
                 SnsTopic=sns_topic_arn,
             )
-    except (ClientError, BotoCoreError) as e:
-        logger.error(f"Failed to set SES notifications for {identity}: {e}")
-        raise
     except Exception as e:
-        logger.error(f"Unexpected error setting SES notifications for {identity}: {e}")
         raise
 
 
@@ -284,11 +260,7 @@ def update_contact(
             raise ValueError(f"Failed to update contact {contact_id}: {response.text}")
         logger.info(f"Updated contact {contact_id} with custom fields {custom_fields}")
         return response.json()
-    except requests.RequestException as e:
-        logger.error(f"HTTP request failed: {e}")
-        raise
     except Exception as e:
-        logger.error(f"Unexpected error updating contact {contact_id}: {e}")
         raise
 
 
@@ -298,6 +270,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         config = get_config()
         aws_clients = get_aws_clients()
         body = json.loads(event["body"])
+
+        pwd = os.path.dirname(os.path.abspath(__file__))
+        schema_path = f"{pwd}/schemas/input_schema.json"
+        input_schema = load_schema(schema_path)
+        validate(instance=body, schema=input_schema)
+
         contact_id = body["contact_id"]
         appname = body["appname"]
         email_username = body["email_username"]
@@ -349,12 +327,5 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             ),
         }
-    except (ClientError, BotoCoreError) as e:
-        logger.error(f"AWS error occurred: {e}")
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
-    except ValueError as e:
-        logger.error(f"Value error occurred: {e}")
-        return {"statusCode": 400, "body": json.dumps({"error": str(e)})}
     except Exception as e:
-        logger.error(f"Unexpected error occurred: {e}")
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return handle_error(e)
