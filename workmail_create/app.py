@@ -1,21 +1,26 @@
-# workmail_create/app.py
 import boto3
 import json
 import random
 import string
-import tldextract
 import os
 import requests
 import logging
-from botocore.exceptions import ClientError, BotoCoreError
-from jsonschema import validate
+import mysql.connector
+import uuid
+import time
+from botocore.config import Config
+from config import get_config
 from typing import Dict, Any, List, Tuple
-from workmail_create.config import get_config
-from workmail_common.utils import load_schema, handle_error
+from workmail_common.utils import (
+    handle_error,
+    process_input,
+    connect_to_rds,
+    get_aws_clients,
+)
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def add_contact_to_group(
@@ -23,6 +28,7 @@ def add_contact_to_group(
 ) -> Dict[str, Any]:
     """Add contact to a group."""
     try:
+        logger.info(f"Adding contact {contact_id} to tag {tag_id}")
         keap_base_url = config["KEAP_BASE_URL"]
         keap_token = config["KEAP_API_KEY"]
         url = f"{keap_base_url}contacts/{contact_id}/tags"
@@ -42,63 +48,98 @@ def add_contact_to_group(
         raise
 
 
-def create_workmail_stack(
+def create_workmail(
     org_name: str,
     vanity_name: str,
     email_username: str,
-    display_name: str,
-    password: str,
     first_name: str,
     last_name: str,
-    cloudformation_client: Any,
-) -> str:
-    """Create a WorkMail stack using CloudFormation."""
+    workmail_client: Any,
+) -> Dict[str, Any]:
+    """Create a WorkMail Organization and User."""
     try:
-        parameters = [
-            {"ParameterKey": "OrganizationName", "ParameterValue": org_name},
-            {"ParameterKey": "DomainName", "ParameterValue": vanity_name},
-            {"ParameterKey": "UserName", "ParameterValue": email_username},
-            {"ParameterKey": "DisplayName", "ParameterValue": display_name},
-            {"ParameterKey": "Password", "ParameterValue": password},
-            {"ParameterKey": "FirstName", "ParameterValue": first_name},
-            {"ParameterKey": "LastName", "ParameterValue": last_name},
-        ]
 
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        template_path = os.path.join(
-            current_dir, "resources/workmail_create_template.yaml"
+        client_token = str(uuid.uuid4())
+        # Create WorkMail organization
+        logger.info(f"Creating WorkMail organization {org_name}")
+        create_org_response = workmail_client.create_organization(
+            Alias=org_name, ClientToken=client_token
         )
-        with open(template_path, "r") as file:
-            response = cloudformation_client.create_stack(
-                StackName=f"workmail-{org_name}",
-                TemplateBody=file.read(),
-                Parameters=parameters,
-                Capabilities=["CAPABILITY_NAMED_IAM"],
+        organization_id = create_org_response["OrganizationId"]
+        logger.info(f"Created WorkMail organization {organization_id}")
+
+        # Wait for the organization to become Active
+        logger.info(f"Waiting for organization {organization_id} to become Active")
+        i = 0
+        while True:
+            describe_org_response = workmail_client.describe_organization(
+                OrganizationId=organization_id
             )
-        return response["StackId"]
+            state = describe_org_response["State"].upper()
+            if state == "ACTIVE":
+                break
+            elif state == "FAILED":
+                raise ValueError(
+                    f"Organization {organization_id} creation failed: {describe_org_response['ErrorMessage']}"
+                )
+            elif i > 10:
+                raise ValueError(
+                    f"Organization {organization_id} took too long to become Active"
+                )
+            time.sleep(2)
+            i += 1
+
+        # Register the domain
+        logger.info(
+            f"Registering domain {vanity_name} with organization {organization_id}"
+        )
+        workmail_client.register_mail_domain(
+            ClientToken=client_token,
+            OrganizationId=organization_id,
+            DomainName=vanity_name,
+        )
+        logger.info(
+            f"Registered domain {vanity_name} with organization {organization_id}"
+        )
+
+        # Create the WorkMail user
+        logger.info(f"Creating WorkMail user {email_username}")
+        display_name = f"{first_name} {last_name}"
+        password = generate_random_password()
+        create_user_response = workmail_client.create_user(
+            OrganizationId=organization_id,
+            Name=email_username,
+            DisplayName=display_name,
+            Password=password,
+            Role="USER",
+            FirstName=first_name,
+            LastName=last_name,
+            HiddenFromGlobalAddressList=False,
+        )
+        user_id = create_user_response["UserId"]
+        logger.info(f"Created WorkMail user {email_username}, user_id {user_id}")
+
+        return {
+            "organization_id": organization_id,
+            "user_id": user_id,
+            "password": password,
+        }
     except Exception as e:
         raise
 
 
 def generate_random_password(length: int = 12) -> str:
     """Generate a random password."""
+    logger.info(f"Generating random password of length {length}")
     characters = string.ascii_letters + string.digits + "!@#$%^&*()"
     return "".join(random.choice(characters) for _ in range(length))
-
-
-def get_aws_clients() -> Dict[str, Any]:
-    return {
-        "rds_client": boto3.client("rds-data"),
-        "cloudformation_client": boto3.client("cloudformation"),
-        "ses_client": boto3.client("ses"),
-        "workmail_client": boto3.client("workmail"),
-    }
 
 
 def get_dns_records(
     domain_name: str, ses_client: Any, workmail_client: Any, config: Dict[str, str]
 ) -> List[Dict[str, str]]:
     """Get DNS records for a domain."""
+    logger.info(f"Getting DNS records for domain {domain_name}")
     dns_records = []
     try:
         dkim_response = ses_client.get_identity_dkim_attributes(
@@ -141,83 +182,77 @@ def get_dns_records(
                     "Value": record["Value"],
                 }
             )
+        logger.info(f"Retrieved DNS records for domain {domain_name}")
     except Exception as e:
         raise
     return dns_records
 
 
-def query_rds(
-    contact_id: int, appname: str, rds_client: Any, config: Dict[str, str]
+def get_client_info(
+    contact_id: int,
+    appname: str,
+    connection: Any,
 ) -> Tuple[str, str]:
     """Query RDS for customer information."""
+    logger.info(f"Querying RDS for contact_id {contact_id} and appname {appname}")
     try:
-        db_secret_arn = config["DB_SECRET_ARN"]
-        db_cluster_arn = config["DB_CLUSTER_ARN"]
-        database_name = config["DATABASE_NAME"]
+        cursor = connection.cursor()
         sql = """
         SELECT ownerfirstname, ownerlastname
         FROM app
-        WHERE ownerid = :contact_id AND appname = :appname
+        WHERE ownerid = %s AND appname = %s
         LIMIT 1
         """
-        response = rds_client.execute_statement(
-            secretArn=db_secret_arn,
-            resourceArn=db_cluster_arn,
-            sql=sql,
-            database=database_name,
-            parameters=[
-                {"name": "contact_id", "value": {"longValue": contact_id}},
-                {"name": "appname", "value": {"stringValue": appname}},
-            ],
-        )
-        if not response["records"]:
+        cursor.execute(sql, (contact_id, appname))
+        result = cursor.fetchone()
+
+        if not result:
             raise ValueError(
-                f"No customer found with contact_id={contact_id} and appname={appname}"
+                f"No client found with contact_id {contact_id} and appname {appname}"
             )
-        first_name = response["records"][0][0]["stringValue"]
-        last_name = response["records"][0][1]["stringValue"]
+
+        first_name, last_name = result
+        logger.info(f"Retrieved client information for contact_id {contact_id}")
         return first_name, last_name
     except Exception as e:
         raise
+    finally:
+        if "cursor" in locals() and cursor:
+            cursor.close()
 
 
-def register_workmail_stack(
+def register_workmail_organization(
     ownerid: int,
     email_username: str,
     vanity_name: str,
-    stack_id: str,
-    rds_client: Any,
-    config: Dict[str, str],
+    organization_id: str,
+    connection: Any,
 ) -> None:
     """Register a WorkMail stack in the database."""
+    logger.info(f"Registering WorkMail stack {organization_id} for ownerid {ownerid}")
     try:
-        db_secret_arn = config["DB_SECRET_ARN"]
-        db_cluster_arn = config["DB_CLUSTER_ARN"]
-        database_name = config["DATABASE_NAME"]
+        cursor = connection.cursor()
         sql = """
-        INSERT INTO workmail_stacks (ownerid, email_username, vanity_name, stackid)
-        VALUES (:ownerid, :email_username, :vanity_name, :stack_id)
+        INSERT INTO workmail_organizations (ownerid, email_username, vanity_name, organization_id)
+        VALUES (%s, %s, %s, %s)
         """
-        rds_client.execute_statement(
-            secretArn=db_secret_arn,
-            resourceArn=db_cluster_arn,
-            sql=sql,
-            database=database_name,
-            parameters=[
-                {"name": "ownerid", "value": {"longValue": ownerid}},
-                {"name": "email_username", "value": {"stringValue": email_username}},
-                {"name": "vanity_name", "value": {"stringValue": vanity_name}},
-                {"name": "stack_id", "value": {"stringValue": stack_id}},
-            ],
+        cursor.execute(sql, (ownerid, email_username, vanity_name, organization_id))
+        connection.commit()
+        logger.info(
+            f"Registered WorkMail organization {organization_id} for ownerid {ownerid}"
         )
     except Exception as e:
         raise
+    finally:
+        if "cursor" in locals() and cursor:
+            cursor.close()
 
 
 def set_ses_notifications(
     identity: str, ses_client: Any, config: Dict[str, str]
 ) -> None:
     """Set SES notifications for an identity."""
+    logger.info(f"Setting SES notifications for identity {identity}")
     try:
         sns_bounce_arn = config["SNS_BOUNCE_ARN"]
         sns_complaint_arn = config["SNS_COMPLAINT_ARN"]
@@ -238,6 +273,7 @@ def set_ses_notifications(
                 NotificationType=notification_type,
                 SnsTopic=sns_topic_arn,
             )
+        logger.info(f"Set SES notifications for identity {identity}")
     except Exception as e:
         raise
 
@@ -246,6 +282,7 @@ def update_contact(
     contact_id: int, custom_fields: List[Dict[str, str]], config: Dict[str, str]
 ) -> Dict[str, Any]:
     """Update contact with custom fields."""
+    logger.info(f"Updating contact {contact_id} with custom fields {custom_fields}")
     try:
         keap_base_url = config["KEAP_BASE_URL"]
         keap_token = config["KEAP_API_KEY"]
@@ -266,66 +303,78 @@ def update_contact(
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Lambda function handler."""
+    logger.info("Handling Lambda event")
     try:
+
         config = get_config()
         aws_clients = get_aws_clients()
+
+        connection = connect_to_rds(aws_clients["secretsmanager_client"], config=config)
+
         body = json.loads(event["body"])
 
         pwd = os.path.dirname(os.path.abspath(__file__))
-        schema_path = f"{pwd}/schemas/input_schema.json"
-        input_schema = load_schema(schema_path)
-        validate(instance=body, schema=input_schema)
+        schema_path = os.path.join(pwd, "schemas/input_schema.json")
+        clean_input = process_input(body, schema_path)
 
-        contact_id = body["contact_id"]
-        appname = body["appname"]
-        email_username = body["email_username"]
-        vanity_name = body["vanity_name"]
+        contact_id = clean_input["contact_id"]
+        appname = clean_input["appname"]
+        vanity_name = clean_input["vanity_name"]
+        org_name = clean_input["org_name"]
+        email_username = clean_input["email_username"]
+        email_address = clean_input["email_address"]
 
-        first_name, last_name = query_rds(
-            contact_id, appname, aws_clients["rds_client"], config=config
+        first_name, last_name = get_client_info(
+            contact_id,
+            appname,
+            connection,
         )
-        display_name = f"{first_name} {last_name}"
-        email = f"{email_username}@{vanity_name}"
-        password = generate_random_password()
-        org_name = tldextract.extract(vanity_name).domain
 
-        stack_id = create_workmail_stack(
+        create_workmail_response = create_workmail(
             org_name,
             vanity_name,
             email_username,
-            display_name,
-            password,
             first_name,
             last_name,
-            aws_clients["cloudformation_client"],
+            aws_clients["workmail_client"],
         )
-        register_workmail_stack(
+        organization_id = create_workmail_response["organization_id"]
+
+        register_workmail_organization(
             contact_id,
             email_username,
             vanity_name,
-            stack_id,
-            aws_clients["rds_client"],
-            config=config,
+            organization_id,
+            connection,
         )
-        set_ses_notifications(email, aws_clients["ses_client"], config=config)
-        dns_records = get_dns_records(
-            vanity_name,
-            aws_clients["ses_client"],
-            aws_clients["workmail_client"],
-            config=config,
-        )
-        update_contact(contact_id, dns_records, config=config)
-        add_contact_to_group(contact_id, config["KEAP_TAG"], config=config)
+
+        set_ses_notifications(email_address, aws_clients["ses_client"], config=config)
+
+        # dns_records = get_dns_records(
+        #     vanity_name,
+        #     aws_clients["ses_client"],
+        #     aws_clients["workmail_client"],
+        #     config=config,
+        # )
+
+        # update_contact(contact_id, dns_records, config=config)
+
+        # add_contact_to_group(contact_id, config["KEAP_TAG"], config=config)
+
+        logger.info("WorkMail organization and user creation initiated")
 
         return {
             "statusCode": 200,
             "body": json.dumps(
                 {
                     "message": "WorkMail organization and user creation initiated.",
-                    "stackId": stack_id,
-                    "email": email,
+                    "stackId": organization_id,
+                    "email": email_address,
                 }
             ),
         }
     except Exception as e:
         return handle_error(e)
+    finally:
+        if "connection" in locals() and connection.is_connected():
+            connection.close()
