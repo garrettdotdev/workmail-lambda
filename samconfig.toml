@@ -16,6 +16,11 @@ lint = true
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
+s3_prefix = "workmail"
+region = "us-east-1"
+profile = "lss"
+image_repositories = []
+parameter_overrides = "DbSecretArn=\"{{resolve:ssm:/rds/rfsb/db_secret_arn}}\" DbClusterArn=\"{{resolve:ssm:/rds/rfsb/db_cluster_arn}}\" DbName=\"{{resolve:ssm:/rds/rfsb/db_name}}\" KeapApiKeySecret=\"{{resolve:secretsmanager:prod/apikeys/keap}}\" SecurityGroupIds=\"sg-e4f1719e\" SubnetIds=\"subnet-03bcaee3cdffd4ece\" VpcId=\"vpc-974659f2\""
 
 [default.package.parameters]
 resolve_s3 = true
