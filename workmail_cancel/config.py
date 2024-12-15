@@ -2,7 +2,14 @@ import os
 
 
 def get_config():
-    required_vars = ["DB_SECRET_ARN", "DB_CLUSTER_ARN", "DATABASE_NAME"]
+    required_vars = [
+        "DB_SECRET_ARN",
+        "DB_CLUSTER_ARN",
+        "DATABASE_NAME",
+        "SNS_BOUNCE_ARN",
+        "SNS_COMPLAINT_ARN",
+        "SNS_DELIVERY_ARN",
+    ]
     config = {}
     for var in required_vars:
         value = os.environ.get(var)
