@@ -42,6 +42,8 @@ The project follows a serverless architecture that includes:
 ## Primary Language
 The primary language for this project is Python, which is used to write the Lambda functions and associated logic. The project uses the `boto3` library to interact with AWS services.
 
+CloudFormation is handled by AWS SAM, template is written in YAML.
+
 ## Project Structure
 The repository is organized as follows:
 
@@ -129,11 +131,8 @@ Once deployed, the API Gateway URL will be displayed in the output. Use this URL
 ## Development
 This project is actively being developed, and not all features are fully functional. The following items are still in progress:
 
-- **Complete Unit and Integration Tests**: Test files are in place but require implementation for both create and cancel functions.
-- **Full API Functionality**: Ensure the API endpoints create and delete WorkMail organizations as expected.
-- **Input Validation**: Ensure that input validation aligns with the JSON schema definitions.
-- **Error Handling**: Improve error handling for edge cases and failed API calls.
-- **Security Improvements**: Store and access secrets securely via AWS Secrets Manager.
+- **Full API Functionality**: Primary focus at the moment. The `workmail_create` and `workmail_cancel` functions are not yet fully implemented.
+- **Complete Unit and Integration Tests**: Test files are in place but currently fail because they're behind the times. On my list to update these.
 
 ## Usage
 To create a WorkMail organization, send a POST request to the `/workmail/create` endpoint. An example request body might look like this:
@@ -165,11 +164,6 @@ pytest tests/
 ```
 
 > **Note**: Some tests are placeholders and may not be fully implemented.
-
-## Known Issues
-- **API Gateway URL Not Yet Finalized**: The API URL may change as the project evolves.
-- **Validation Incomplete**: Input validation needs to be robust to prevent invalid requests.
-- **Security Enhancements Needed**: Secrets and API keys should be managed with AWS Secrets Manager.
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
