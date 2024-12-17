@@ -171,9 +171,6 @@ pytest tests/
 - **Validation Incomplete**: Input validation needs to be robust to prevent invalid requests.
 - **Security Enhancements Needed**: Secrets and API keys should be managed with AWS Secrets Manager.
 
-## Contributing
-Contributions are welcome! If you'd like to contribute, please fork the repository, create a feature branch, and submit a pull request.
-
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
 
