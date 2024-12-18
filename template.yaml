@@ -1,9 +1,9 @@
-#file: noinspection YAMLSchemaValidation
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
 Description: >
   Serverless application to automate AWS WorkMail creation and cancellation.
+
 
 Metadata:
   AWS::ServerlessRepo::Application:
@@ -16,6 +16,9 @@ Parameters:
     Default: ""
     AllowedValues: ["", "dev", "stage", "test"]
     Description: Stage name for the API Gateway
+  TokenSecretName:
+    Type: String
+    Description: Name of the Secrets Manager secret for the token
   DbSecretArn:
     Type: String
     Description: ARN of the Secrets Manager secret for the database
@@ -29,9 +32,9 @@ Parameters:
     Type: String
     Default: "https://api.infusionsoft.com/crm/rest/v1"
     Description: Base URL for the Keap API
-  KeapApiKeySecret:
+  KeapApiKeySecretName:
     Type: String
-    Description: Keap API key
+    Description: Name of the Secrets Manager secret for the Keap API key
   KeapTag:
     Type: String
     Default: "3153"
@@ -56,66 +59,179 @@ Conditions:
   IsProduction: !Equals [ !Ref Stage, "" ]
 
 Resources:
-  CreateFunction:
+  # API Gateway to trigger workflow
+  WorkMailApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Name: WorkMailApi
+      CorsConfiguration:
+        AllowHeaders: "*"
+        AllowMethods: "POST"
+        AllowOrigins: "*"
+      StageName: !If [IsProduction, "", !Ref Stage]
+
+  # Lambda function acting as authorizer
+  AuthorizerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: workmail_create/
+      CodeUri: authorizer_function/
+      Handler: app.lambda_handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          TOKEN_SECRET_NAME: !Ref TokenSecretName
+
+  # Authorizer for the API Gateway
+  WorkMailAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      Name: WorkMailAuthorizer
+      ApiId: !Ref WorkMailApi
+      AuthorizerType: REQUEST
+      AuthorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
+      IdentitySource:
+        - "$request.header.Authorization"
+      EnableSimpleResponses: true
+
+  # Route with attached authorizer
+  CreateApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WorkMailApi
+      RouteKey: "POST /workmail/create"
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref WorkMailAuthorizer
+      Target: !Sub "integrations/${StartWorkMailWorkflowIntegration}"
+
+  # Integration to connection Api Gateway to Labmda
+  StartWorkMailWorkflowIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WorkMailApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${StartCreateWorkMailWorkflowFunction.Arn}/invocations"
+      PayloadFormatVersion: "2.0"
+
+  # Lambda function that triggers Step Functions
+  StartCreateWorkMailWorkflowFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: start_workmail_workflow/
+      Handler: app.lambda_handler
+      PackageType: Zip
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - AWSXRayDaemonWriteAccess
+        - Statement:
+          - Effect: "Allow"
+            Action:
+              - states:StartExecution
+            Resource:
+              - !Ref WorkMailStepFunction
+      Environment:
+        Variables:
+          WORKMAIL_STEPFUNCTION_ARN: !Ref WorkMailStepFunction
+
+  # Execution role for the Step Function
+  WorkMailStepFunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "states.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "WorkMailStepFunctionExecutionPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - lambda:InvokeFunction
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !GetAtt CreateWorkMailOrgFunction.Arn
+                  - !GetAtt CheckDomainVerificationFunction.Arn
+                  - !GetAtt CreateWorkMailUserFunction.Arn
+
+  # Step Function to orchestrate the WorkMail creation process
+  WorkMailStepFunction:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      RoleArn: !GetAtt WorkMailStepFunctionExecutionRole.Arn
+      DefinitionString:
+        !Sub |
+          {
+            "Comment": "Orchestrate WorkMail creation",
+            "StartAt": "CreateWorkMailOrg",
+            "States": {
+              "CreateWorkMailOrgFunction": {
+                "Type": "Task",
+                "Resource": !Sub "${CreateWorkMailOrgFunction.Arn}",
+                "Next": "WaitForDNSVerification"
+              },
+              "wait": {
+                "Type": "Wait",
+                "Seconds": 300,
+                "Next": "CheckDomainVerificationFunction"
+              },
+              "CheckDomainVerificationFunction": {
+                "Type": "Task",
+                "Resource": !Sub "${CheckDomainVerificationFunction.Arn}",
+                "Next": "IsDomainVerified"
+              },
+              "IsDomainVerified": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "Variable": "$.domainVerified",
+                    "BooleanEquals": true,
+                    "Next": "CreateWorkMailUser"
+                  }
+                ],
+                "Default": "WaitForDNSVerification"
+              },
+              "CreateWorkMailUserFunction": {
+                "Type": "Task",
+                "Resource": !Sub "${CreateWorkMailUserFunction.Arn}",
+                "End": true
+              }
+            }
+          }
+
+
+
+  # Lambda function to create the workmail organization and register the domain
+  CreateWorkMailOrgFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: workmail_create_organization/
       Handler: app.lambda_handler
       PackageType: Zip
       Layers:
         - !Ref WorkmailCommonLayer
-      Events:
-        CreateApi:
-          Type: HttpApi
-          Properties:
-            Path: /workmail/create
-            Method: POST
-            ApiId: !Ref WorkMailApi
       Policies:
         - AWSLambdaBasicExecutionRole
         - AWSLambdaVPCAccessExecutionRole
+        - AWSXRayDaemonWriteAccess
         - Statement:
-            - Effect: Allow
-              Action: secretsmanager:GetSecretValue
-              Resource: !Ref DbSecretArn
-              Condition:
-                StringEqualsIfExists:
-                  secretsmanager:VersionStage: "AWSCURRENT"
-            - Effect: Allow
-              Action: rds-data:ExecuteStatement
-              Resource: !Ref DbClusterArn
-            - Effect: Allow
-              Action:
-                - workmail:CreateOrganization
-                - workmail:CreateUser
-                - workmail:DescribeMailDomain
-                - workmail:DescribeOrganization
-                - workmail:RegisterMailDomain
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - ds:AuthorizeApplication
-                - ds:CreateAlias
-                - ds:CreateIdentityPoolDirectory
-                - ds:DescribeDirectories
-                - ds:ListAuthorizedApplications
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - sns:Publish
-              Resource: "*"
-            - Effect: Allow
-              Action:
-                - ses:CreateReceiptRule
-                - ses:DescribeActiveReceiptRuleSet
-                - ses:PutIdentityPolicy
-                - ses:SendEmail
-                - ses:SetIdentityEmailNotificationEnabled
-                - ses:SetIdentityNotificationTopic
-                - ses:UpdateReceiptRule
-                - ses:VerifyDomainDkim
-                - ses:VerifyDomainIdentity
-              Resource: "*"
+          - Effect: "Allow"
+            Action:
+              - workmail:CreateOrganization
+              - workmail:DescribeOrganization
+              - workmail:RegisterDomain
+            Resource: "*"
+          - Effect: "Allow"
+            Action: secretsmanager:GetSecretValue
+            Resource: !Ref DbSecretArn
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DbSecretArn
@@ -125,16 +241,62 @@ Resources:
           SNS_COMPLAINT_ARN: !Ref SnsComplaintTopic
           SNS_DELIVERY_ARN: !Ref SnsDeliveryTopic
           KEAP_TAG: !Ref KeapTag
-          KEAP_API_KEY: !Ref KeapApiKeySecret
+          KEAP_API_KEY_SECRET_NAME: !Ref KeapApiKeySecretName
           KEAP_BASE_URL: !Ref KeapBaseUrl
       VpcConfig:
         SecurityGroupIds: !Ref SecurityGroupIds
         SubnetIds: !Ref SubnetIds
 
-  CancelFunction:
+  # Lambda function to check DNS and domain status
+  CheckDomainVerificationFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: workmail_cancel/
+      CodeUri: check_domain_verification_function/
+      Handler: app.lambda_handler
+      PackageType: Zip
+      Layers:
+        - !Ref WorkmailCommonLayer
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - AWSXRayDaemonWriteAccess
+        - Statement:
+          - Effect: "Allow"
+            Action:
+              - workmail:DescribeOrganization
+              - workmail:DescribeDomain
+            Resource: "*"
+          - Effect: "Allow"
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Ref DbSecretArn
+
+  # Lambda function to create the WorkMail User
+  CreateWorkMailUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: create_workmail_user_function/
+      Handler: app.lambda_handler
+      PackageType: Zip
+      Layers:
+          - !Ref WorkmailCommonLayer
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - AWSXRayDaemonWriteAccess
+        - Statement:
+          - Effect: Allow
+            Action:
+              - workmail:CreateUser
+              - workmail:DescribeUser
+              - workmail:DescribeOrganization
+            Resource: "*"
+
+  # Lambda function to delete a WorkMail organization
+  DeleteWorkMailOrgFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: delete_workmail_org_function/
       Handler: app.lambda_handler
       PackageType: Zip
       Layers:
@@ -178,35 +340,10 @@ Resources:
     Type: AWS::Serverless::LayerVersion
     Properties:
       LayerName: "WorkmailCommonLayer"
-      Description: "Common code for CreateFunction and CancelFunction"
+      Description: "Common code for Lambda functions"
       ContentUri: layers/common/
       CompatibleRuntimes:
         - python3.12
-
-  WorkMailApi:
-    Type: AWS::Serverless::HttpApi
-    Properties:
-      Name: WorkMailApi
-
-  #  WorkmailAuthorizerFunction:
-  #    Type: AWS::Serverless::Function
-  #    Properties:
-  #      CodeUri: workmail_authorizer/
-  #      Handler: authorizer.lambda_handler
-  #      Runtime: python3.12
-  #      MemorySize: 128
-  #      Timeout: 5
-  #
-  #  WorkMailAuthorizer:
-  #    Type: AWS::ApiGatewayV2::Authorizer
-  #    Properties:
-  #      ApiId: !Ref WorkMailApi
-  #      Name: WorkMailAuthorizer
-  #      AuthorizerType: REQUEST
-  #      AuthorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${WorkmailAuthorizerFunction.Arn}/invocations"
-  #      IdentitySource:
-  #        - "$request.header.Authorization"
-  #      EnableSimpleResponses: true
 
   SnsBounceTopic:
     Type: AWS::SNS::Topic
@@ -263,15 +400,3 @@ Outputs:
       - !Sub "${WorkMailApi.ApiEndpoint}/${Stage}/workmail/cancel"
     Export:
       Name: CancelApiUrl
-
-  CreateFunctionArn:
-    Description: ARN of the Create Lambda Function
-    Value: !GetAtt CreateFunction.Arn
-    Export:
-      Name: CreateFunctionArn
-
-  CancelFunctionArn:
-    Description: ARN of the Cancel Lambda Function
-    Value: !GetAtt CancelFunction.Arn
-    Export:
-      Name: CancelFunctionArn
