@@ -16,6 +16,7 @@ from workmail_common.utils import (
     process_input,
     connect_to_rds,
     get_aws_clients,
+    get_secret,
 )
 
 # Initialize logging
@@ -30,7 +31,7 @@ def add_contact_to_group(
     try:
         logger.info(f"Adding contact {contact_id} to tag {tag_id}")
         keap_base_url = config["KEAP_BASE_URL"]
-        keap_token = config["KEAP_API_KEY"]
+        keap_token = get_secret(config["KEAP_API_KEY_SECRET_NAME"])
         url = f"{keap_base_url}contacts/{contact_id}/tags"
         headers = {
             "Authorization": f"Bearer {keap_token}",
@@ -285,7 +286,7 @@ def update_contact(
     logger.info(f"Updating contact {contact_id} with custom fields {custom_fields}")
     try:
         keap_base_url = config["KEAP_BASE_URL"]
-        keap_token = config["KEAP_API_KEY"]
+        keap_token = get_secret(config["KEAP_API_KEY_SECRET_NAME"])
         url = f"{keap_base_url}contacts/{contact_id}"
         headers = {
             "Authorization": f"Bearer {keap_token}",

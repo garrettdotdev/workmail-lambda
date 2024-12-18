@@ -1,4 +1,4 @@
-# workmail_create/config.py
+# create_workmail_org_function/config.py
 import os
 
 
@@ -11,7 +11,7 @@ def get_config():
         "SNS_COMPLAINT_ARN",
         "SNS_DELIVERY_ARN",
         "KEAP_BASE_URL",
-        "KEAP_API_KEY",
+        "KEAP_API_KEY_SECRET_NAME",
         "KEAP_TAG",
     ]
     config = {}
