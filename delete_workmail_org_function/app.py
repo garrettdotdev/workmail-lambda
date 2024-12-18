@@ -6,7 +6,7 @@ import uuid
 from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError
 from typing import Dict, Any
-from workmail_cancel.config import get_config
+from delete_workmail_org_function.config import get_config
 from workmail_common.utils import (
     handle_error,
     process_input,
