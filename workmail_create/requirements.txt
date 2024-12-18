@@ -1,5 +1,0 @@
-flask
-boto3
-aws-lambda-powertools
-tldextract
-mysql-connector-python
