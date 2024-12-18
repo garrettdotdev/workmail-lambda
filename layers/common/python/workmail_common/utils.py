@@ -4,6 +4,7 @@ import re
 import boto3
 import validators
 import mysql.connector
+import jwt
 import socket  # DEBUG TODO: REMOVE.
 from urllib.parse import urlparse
 from botocore.config import Config
@@ -80,22 +81,17 @@ def extract_domain(url: str) -> (str, str):
     return full_domain, root_domain
 
 
+def get_account_id():
+    return boto3.client("sts").get_caller_identity().get("Account")
+
+
 def get_aws_clients() -> Dict[str, Any]:
     logger.info("Initializing AWS clients")
-    # DEBUG TODO: REMOVE
-    # resolved_ips = {
-    #     "secretsmanager_ip": socket.gethostbyname(
-    #         "secretsmanager.us-east-1.amazonaws.com"
-    #     ),
-    #     "workmail_ip": socket.gethostbyname("workmail.us-east-1.amazonaws.com"),
-    #     "ses_ip": socket.gethostbyname("email-smtp.us-east-1.amazonaws.com"),
-    # }
-    # logger.info(f"Resolved Service Endpoint IPs: {resolved_ips}")
-    # /DEBUG
 
     client_config = Config(
         connect_timeout=5, retries={"max_attempts": 2, "mode": "adaptive"}
     )
+
     try:
         return {
             "secretsmanager_client": boto3.client(
@@ -104,6 +100,25 @@ def get_aws_clients() -> Dict[str, Any]:
             "ses_client": boto3.client("ses", config=client_config),
             "workmail_client": boto3.client("workmail", config=client_config),
         }
+    except Exception as e:
+        raise
+
+
+def get_aws_client(service_name: str) -> boto3.client:
+    try:
+        client = boto3.client(service_name)
+        return client
+    except Exception as e:
+        raise
+
+
+def get_secret(secret_name: str) -> str:
+    """Retrieve the secret value from AWS Secrets Manager."""
+    try:
+        secretsmanager_client = get_aws_client("secretsmanager")
+        response = secretsmanager_client.get_secret_value(SecretId=secret_name)
+        secret = response["SecretString"]
+        return secret
     except Exception as e:
         raise
 
@@ -122,6 +137,8 @@ def handle_error(e: Exception) -> Dict[str, Any]:
         NoCredentialsError: (500, lambda e: "No AWS credentials found"),
         PartialCredentialsError: (500, lambda e: "Partial AWS credentials found"),
         ClientError: (500, lambda e: e.response["Error"]["Message"]),
+        jwt.ExpiredSignatureError: (401, lambda e: "Token has expired"),
+        jwt.InvalidTokenError: (401, lambda e: "Invalid token"),
     }
     clients = get_aws_clients()
     for client_name, client in clients.items():
