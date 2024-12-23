@@ -1,80 +1,107 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import patch, MagicMock
 from workmail_common.utils import handle_error
-from jsonschema.exceptions import ValidationError
-from json import JSONDecodeError
-from botocore.exceptions import ClientError, BotoCoreError
+from botocore.exceptions import (
+    BotoCoreError,
+    NoCredentialsError,
+    ClientError,
+    PartialCredentialsError,
+)
+import json
+import jwt
+from requests import RequestException
 
 
 class TestHandleError(unittest.TestCase):
-    def test_handle_error_validation_error(self):
-        # Arrange
-        error = ValidationError("Invalid input")
-
-        # Act
-        response = handle_error(error)
-
-        # Assert
-        self.assertEqual(response["statusCode"], 400)
-        self.assertIn("Invalid input", response["body"])
 
     def test_handle_error_json_decode_error(self):
-        # Arrange
-        error = JSONDecodeError("Invalid JSON format", "", 0)
-
-        # Act
+        error = json.JSONDecodeError("Expecting value", "doc", 0)
         response = handle_error(error)
-
-        # Assert
         self.assertEqual(response["statusCode"], 400)
         self.assertIn("Invalid JSON format", response["body"])
 
-    def test_handle_error_client_error(self):
-        # Arrange
-        error = ClientError(
-            {"Error": {"Code": "ClientError", "Message": "An error occurred"}},
-            "operation",
-        )
-
-        # Act
+    def test_handle_error_value_error(self):
+        error = ValueError("Invalid value")
         response = handle_error(error)
+        self.assertEqual(response["statusCode"], 400)
+        self.assertIn("Invalid value", response["body"])
 
-        # Assert
-        self.assertEqual(response["statusCode"], 500)
-        self.assertIn("An error occurred", response["body"])
+    def test_handle_error_request_exception(self):
+        error = RequestException("Bad Gateway")
+        response = handle_error(error)
+        self.assertEqual(response["statusCode"], 502)
+        self.assertIn("Bad Gateway", response["body"])
 
-    def test_handle_error_boto_core_error(self):
-        # Arrange
+    def test_handle_error_key_error(self):
+        error = KeyError("missing_key")
+        response = handle_error(error)
+        self.assertEqual(response["statusCode"], 400)
+        self.assertIn("Key error: missing_key", response["body"])
+
+    def test_handle_error_boto3_error(self):
         error = BotoCoreError()
-
-        # Act
         response = handle_error(error)
-
-        # Assert
         self.assertEqual(response["statusCode"], 500)
         self.assertIn("An unspecified error occurred", response["body"])
 
-    def test_handle_error_value_error(self):
-        # Arrange
-        error = ValueError("Value error occurred")
-
-        # Act
+    def test_handle_error_no_credentials_error(self):
+        error = NoCredentialsError()
         response = handle_error(error)
+        self.assertEqual(response["statusCode"], 500)
+        self.assertIn("No AWS credentials found", response["body"])
 
-        # Assert
-        self.assertEqual(response["statusCode"], 400)
-        self.assertIn("Value error occurred", response["body"])
+    def test_handle_error_partial_credentials_error(self):
+        error = PartialCredentialsError(
+            provider="aws", cred_var="AWS_SECRET_ACCESS_KEY"
+        )
+        response = handle_error(error)
+        self.assertEqual(response["statusCode"], 500)
+        self.assertIn("Partial AWS credentials found", response["body"])
+
+    def test_handle_error_client_error(self):
+        error = ClientError(
+            error_response={
+                "Error": {
+                    "Code": "ResourceNotFoundException",
+                    "Message": "Secret not found",
+                }
+            },
+            operation_name="GetSecretValue",
+        )
+        response = handle_error(error)
+        self.assertEqual(response["statusCode"], 500)
+        self.assertIn("Secret not found", response["body"])
+
+    def test_handle_error_jwt_expired_signature_error(self):
+        error = jwt.ExpiredSignatureError("Token has expired")
+        response = handle_error(error)
+        self.assertEqual(response["statusCode"], 401)
+        self.assertIn("Token has expired", response["body"])
+
+    def test_handle_error_jwt_invalid_token_error(self):
+        error = jwt.InvalidTokenError("Invalid token")
+        response = handle_error(error)
+        self.assertEqual(response["statusCode"], 401)
+        self.assertIn("Invalid token", response["body"])
+
+    @patch("workmail_common.utils.get_aws_clients")
+    def test_handle_error_custom_client_exception(self, mock_get_aws_clients):
+        mock_client = MagicMock()
+        mock_client.exceptions.CustomException = type(
+            "CustomException", (Exception,), {}
+        )
+        mock_get_aws_clients.return_value = {"mock_client": mock_client}
+
+        error = mock_client.exceptions.CustomException("Custom error")
+        response = handle_error(error)
+        self.assertEqual(response["statusCode"], 500)
+        self.assertIn("CustomException: Custom error", response["body"])
 
     def test_handle_error_unexpected_error(self):
-        # Arrange
-        error = Exception("Unexpected error occurred")
-
-        # Act
+        error = Exception("Unexpected error")
         response = handle_error(error)
-
-        # Assert
         self.assertEqual(response["statusCode"], 500)
-        self.assertIn("Unexpected error occurred", response["body"])
+        self.assertIn("Unexpected error", response["body"])
 
 
 if __name__ == "__main__":
