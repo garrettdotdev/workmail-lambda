@@ -1,25 +1,22 @@
+# workmail_common/utils.py
 import json
 import logging
 import re
 import boto3
-import validators
 import mysql.connector
 import jwt
-import socket  # DEBUG TODO: REMOVE.
-from urllib.parse import urlparse
+import fastjsonschema
 from botocore.config import Config
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import (
-    ClientError,
     BotoCoreError,
     NoCredentialsError,
     PartialCredentialsError,
 )
-from jsonschema import validate
-from jsonschema.exceptions import ValidationError
+from fastjsonschema import JsonSchemaException
 from requests import RequestException
 from typing import Any, Dict
-from boto3.exceptions import Boto3Error
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -59,14 +56,14 @@ def extract_domain(url: str) -> (str, str):
     hostname = parsed.hostname
 
     if not hostname:
-        raise ValidationError(f"Invalid URL or domain name: '{url}'")
+        raise Exception(f"Invalid URL or domain name: '{url}'")
 
     # Remove www. if present (normalize the hostname)
     hostname = hostname.lstrip("www.")
 
     # Validate the domain using a regex (ensure it has at least one dot)
     if not re.match(r"^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", hostname):
-        raise ValidationError(f"Invalid domain name: '{hostname}'")
+        raise Exception(f"Invalid domain name: '{hostname}'")
 
     # Extract the full domain (e.g., blog.example.com)
     full_domain = hostname
@@ -76,7 +73,7 @@ def extract_domain(url: str) -> (str, str):
     if len(domain_parts) >= 2:
         root_domain = domain_parts[-2]
     else:
-        raise ValidationError(f"Unable to extract root domain from: '{full_domain}'")
+        raise Exception(f"Unable to extract root domain from: '{full_domain}'")
 
     return full_domain, root_domain
 
@@ -112,7 +109,7 @@ def get_aws_client(service_name: str) -> boto3.client:
         raise
 
 
-def get_secret(secret_name: str) -> str:
+def get_secret_value(secret_name: str) -> str:
     """Retrieve the secret value from AWS Secrets Manager."""
     try:
         secretsmanager_client = get_aws_client("secretsmanager")
@@ -127,25 +124,27 @@ def handle_error(e: Exception) -> Dict[str, Any]:
     """Handle exceptions."""
     logger.warning(f"handle_error is attempting to handle a raised exception...")
     error_mapping = {
-        ValidationError: (400, lambda e: f"Invalid input: {e.message}"),
-        json.JSONDecodeError: (400, lambda e: "Invalid JSON format"),
-        ValueError: (400, lambda e: str(e)),
-        RequestException: (502, lambda e: "Bad Gateway"),
-        KeyError: (400, lambda e: f"Key error: {e.args[0]}"),
-        Boto3Error: (500, lambda e: "An unspecified error occurred"),
-        BotoCoreError: (500, lambda e: "An unspecified error occurred"),
-        NoCredentialsError: (500, lambda e: "No AWS credentials found"),
-        PartialCredentialsError: (500, lambda e: "Partial AWS credentials found"),
-        ClientError: (500, lambda e: e.response["Error"]["Message"]),
-        jwt.ExpiredSignatureError: (401, lambda e: "Token has expired"),
-        jwt.InvalidTokenError: (401, lambda e: "Invalid token"),
+        json.JSONDecodeError: (400, lambda: "Invalid JSON format"),
+        JsonSchemaException: (400, lambda: f"Schema validation error: {str(e)}"),
+        ValueError: (400, lambda: str(e)),
+        RequestException: (502, lambda: "Bad Gateway"),
+        KeyError: (400, lambda: f"Key error: {e.args[0]}"),
+        NoCredentialsError: (500, lambda: "No AWS credentials found"),
+        PartialCredentialsError: (
+            500,
+            lambda: "Partial AWS credentials found",
+        ),
+        jwt.ExpiredSignatureError: (401, lambda: "Token has expired"),
+        jwt.InvalidTokenError: (401, lambda: "Invalid token"),
+        Boto3Error: (500, lambda: "An unspecified error occurred"),
+        BotoCoreError: (500, lambda: "An unspecified error occurred"),
     }
     clients = get_aws_clients()
     for client_name, client in clients.items():
         client_exceptions = {
             getattr(client.exceptions, exception_name): (
                 500,
-                lambda error_message: f"{exception_name}: {str(error_message)}",
+                lambda exception_name=exception_name: f"{exception_name}: {str(e)}",
             )
             for exception_name in dir(client.exceptions)
             if exception_name.endswith("Exception")
@@ -157,7 +156,7 @@ def handle_error(e: Exception) -> Dict[str, Any]:
             logger.error(f"{exception_types.__name__} occurred: {e}")
             return {
                 "statusCode": status_code,
-                "body": json.dumps({"error": message_func(e)}),
+                "body": json.dumps({"error": message_func()}),
             }
     logger.error(f"Unexpected error occurred: {e}")
     return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
@@ -175,37 +174,28 @@ def load_schema(schema_path: str) -> Dict[str, Any]:
         raise
 
 
+def validate(body: Dict[str, Any], schema: Dict[str, Any]) -> bool:
+    try:
+        validator = fastjsonschema.compile(schema)
+        validator(body)
+        return True
+    except fastjsonschema.JsonSchemaException as e:
+        raise
+
+
 def process_input(body: Dict[str, Any], schemapath: str) -> Dict[str, Any]:
     schema = load_schema(schemapath)
-    output = {}
     try:
         validate(body, schema)
 
-        if "contact_id" in body:
-            if not str(body["contact_id"]).isdigit():
-                raise ValidationError("contact_id must only contain numbers")
-            output["contact_id"] = body["contact_id"]
+        full_domain, root_domain = extract_domain(body["vanity_name"])
+        body["vanity_name"] = full_domain
+        body["org_name"] = root_domain
 
-        if "appname" in body:
-            if not body["appname"].isalnum() or len(body["appname"]) > 14:
-                raise ValidationError("invalid appname")
-            output["appname"] = body["appname"]
+        email_address = f"{body['email_username']}@{body['vanity_name']}"
+        body["email_address"] = email_address
 
-        if "vanity_name" in body:
-            full_domain, root_domain = extract_domain(body["vanity_name"])
-            if not validators.domain(full_domain):
-                raise ValidationError("vanity_name must be a valid domain")
-            output["vanity_name"] = full_domain
-            output["org_name"] = root_domain
-
-        if "email_username" in body:
-            email_address = f"{body['email_username']}@{output['vanity_name']}"
-            if not validators.email(email_address):
-                raise ValidationError("email_username must be a valid email username")
-            output["email_username"] = body["email_username"]
-            output["email_address"] = email_address
-
-    except ValidationError as e:
+    except Exception as e:
         raise e
 
-    return output
+    return body
