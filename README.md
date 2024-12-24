@@ -2,6 +2,11 @@
 
 ---
 
+### Update (23 December 2024)
+Units tests have been updated. They're not in their final form as development is ongoing; some are "quick and dirty" sanity-checks. "Finalized" unit tests and integration tests coming soon-ish, along with more useful documentation.
+
+---
+
 ### Update (15 December 2024)
 The underlying functions for which all the tests were written have changed, so I expect that, at the moment, none of them pass. I will push updated tests soon.
 
