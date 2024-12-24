@@ -102,10 +102,10 @@ Resources:
       RouteKey: "POST /workmail/create"
       AuthorizationType: CUSTOM
       AuthorizerId: !Ref WorkMailAuthorizer
-      Target: !Sub "integrations/${StartWorkMailWorkflowIntegration}"
+      Target: !Sub "integrations/${StartCreateWorkMailWorkflowIntegration}"
 
   # Integration to connection Api Gateway to Labmda
-  StartWorkMailWorkflowIntegration:
+  StartCreateWorkMailWorkflowIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref WorkMailApi
@@ -176,7 +176,7 @@ Resources:
               "CreateWorkMailOrgFunction": {
                 "Type": "Task",
                 "Resource": !Sub "${CreateWorkMailOrgFunction.Arn}",
-                "Next": "WaitForDnsVerification",
+                "Next": "WaitForDomainVerification",
                 "ResultPath": "$.createWorkMailOrgResult",
                 "Catch": [
                   {
@@ -186,7 +186,7 @@ Resources:
                   }
                 ]
               },
-              "WaitForDnsVerification": {
+              "WaitForDomainVerification": {
                 "Type": "Wait",
                 "Seconds": 300,
                 "Next": "CheckDomainVerificationFunction"
@@ -207,7 +207,7 @@ Resources:
                     "Next": "CreateWorkMailUserFunction"
                   }
                 ],
-                "Default": "WaitForDnsVerification"
+                "Default": "WaitForDomainVerification"
               },
               "CreateWorkMailUserFunction": {
                 "Type": "Task",
@@ -217,9 +217,6 @@ Resources:
               }
             }
           }
-
-
-
 
   # Lambda function to create the workmail organization and register the domain
   CreateWorkMailOrgFunction:
