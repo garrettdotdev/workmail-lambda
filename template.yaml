@@ -120,7 +120,7 @@ Resources:
   StartCreateWorkMailWorkflowFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: start_workmail_workflow/
+      CodeUri: start_create_workmail_workflow_function/
       Handler: app.lambda_handler
       PackageType: Zip
       Policies:
@@ -228,7 +228,7 @@ Resources:
   CreateWorkMailOrgFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: workmail_create_organization/
+      CodeUri: create_workmail_org_function/
       Handler: app.lambda_handler
       PackageType: Zip
       Layers:
