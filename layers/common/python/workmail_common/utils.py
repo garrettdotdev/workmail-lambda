@@ -6,6 +6,7 @@ import boto3
 import mysql.connector
 import jwt
 import fastjsonschema
+import requests
 from botocore.config import Config
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import (
@@ -156,13 +157,13 @@ def handle_error(e: Exception) -> Dict[str, Any]:
             logger.error(f"{exception_types.__name__} occurred: {e}")
             return {
                 "statusCode": status_code,
-                "body": json.dumps({"error": message_func()}),
+                "errorMessage": message_func(),
                 "isAuthorized": False,
             }
     logger.error(f"Unexpected error occurred: {e}")
     return {
         "statusCode": 500,
-        "body": json.dumps({"error": str(e)}),
+        "errorMessage": str(e),
         "isAuthorized": False,
     }
 
