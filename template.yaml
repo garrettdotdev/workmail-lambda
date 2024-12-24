@@ -176,9 +176,17 @@ Resources:
               "CreateWorkMailOrgFunction": {
                 "Type": "Task",
                 "Resource": !Sub "${CreateWorkMailOrgFunction.Arn}",
-                "Next": "WaitForDNSVerification"
+                "Next": "WaitForDnsVerification",
+                "ResultPath": "$.createWorkMailOrgResult",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "$.errorInfo",
+                    "End": true
+                  }
+                ]
               },
-              "wait": {
+              "WaitForDnsVerification": {
                 "Type": "Wait",
                 "Seconds": 300,
                 "Next": "CheckDomainVerificationFunction"
@@ -186,22 +194,25 @@ Resources:
               "CheckDomainVerificationFunction": {
                 "Type": "Task",
                 "Resource": !Sub "${CheckDomainVerificationFunction.Arn}",
-                "Next": "IsDomainVerified"
+                "Next": "IsDomainVerified",
+                "InputPath": "$.createWorkMailOrgResult",
+                "ResultPath": "$.domainVerificationResult",
               },
               "IsDomainVerified": {
                 "Type": "Choice",
                 "Choices": [
                   {
-                    "Variable": "$.domainVerified",
+                    "Variable": "$.domainVerificationResult.domainVerified",
                     "BooleanEquals": true,
-                    "Next": "CreateWorkMailUser"
+                    "Next": "CreateWorkMailUserFunction"
                   }
                 ],
-                "Default": "WaitForDNSVerification"
+                "Default": "WaitForDnsVerification"
               },
               "CreateWorkMailUserFunction": {
                 "Type": "Task",
                 "Resource": !Sub "${CreateWorkMailUserFunction.Arn}",
+                "InputPath": "$.createWorkMailOrgResult",
                 "End": true
               }
             }
