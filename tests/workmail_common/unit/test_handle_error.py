@@ -18,37 +18,37 @@ class TestHandleError(unittest.TestCase):
         error = json.JSONDecodeError("Expecting value", "doc", 0)
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 400)
-        self.assertIn("Invalid JSON format", response["body"])
+        self.assertIn("Invalid JSON format", response["errorMessage"])
 
     def test_handle_error_value_error(self):
         error = ValueError("Invalid value")
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 400)
-        self.assertIn("Invalid value", response["body"])
+        self.assertIn("Invalid value", response["errorMessage"])
 
     def test_handle_error_request_exception(self):
         error = RequestException("Bad Gateway")
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 502)
-        self.assertIn("Bad Gateway", response["body"])
+        self.assertIn("Bad Gateway", response["errorMessage"])
 
     def test_handle_error_key_error(self):
         error = KeyError("missing_key")
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 400)
-        self.assertIn("Key error: missing_key", response["body"])
+        self.assertIn("Key error: missing_key", response["errorMessage"])
 
     def test_handle_error_boto3_error(self):
         error = BotoCoreError()
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 500)
-        self.assertIn("An unspecified error occurred", response["body"])
+        self.assertIn("An unspecified error occurred", response["errorMessage"])
 
     def test_handle_error_no_credentials_error(self):
         error = NoCredentialsError()
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 500)
-        self.assertIn("No AWS credentials found", response["body"])
+        self.assertIn("No AWS credentials found", response["errorMessage"])
 
     def test_handle_error_partial_credentials_error(self):
         error = PartialCredentialsError(
@@ -56,7 +56,7 @@ class TestHandleError(unittest.TestCase):
         )
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 500)
-        self.assertIn("Partial AWS credentials found", response["body"])
+        self.assertIn("Partial AWS credentials found", response["errorMessage"])
 
     def test_handle_error_client_error(self):
         error = ClientError(
@@ -70,19 +70,19 @@ class TestHandleError(unittest.TestCase):
         )
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 500)
-        self.assertIn("Secret not found", response["body"])
+        self.assertIn("Secret not found", response["errorMessage"])
 
     def test_handle_error_jwt_expired_signature_error(self):
         error = jwt.ExpiredSignatureError("Token has expired")
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 401)
-        self.assertIn("Token has expired", response["body"])
+        self.assertIn("Token has expired", response["errorMessage"])
 
     def test_handle_error_jwt_invalid_token_error(self):
         error = jwt.InvalidTokenError("Invalid token")
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 401)
-        self.assertIn("Invalid token", response["body"])
+        self.assertIn("Invalid token", response["errorMessage"])
 
     @patch("workmail_common.utils.get_aws_clients")
     def test_handle_error_custom_client_exception(self, mock_get_aws_clients):
@@ -95,13 +95,13 @@ class TestHandleError(unittest.TestCase):
         error = mock_client.exceptions.CustomException("Custom error")
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 500)
-        self.assertIn("CustomException: Custom error", response["body"])
+        self.assertIn("CustomException: Custom error", response["errorMessage"])
 
     def test_handle_error_unexpected_error(self):
         error = Exception("Unexpected error")
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 500)
-        self.assertIn("Unexpected error", response["body"])
+        self.assertIn("Unexpected error", response["errorMessage"])
 
 
 if __name__ == "__main__":
