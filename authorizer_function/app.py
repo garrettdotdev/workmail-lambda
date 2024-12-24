@@ -5,7 +5,7 @@ import os
 from workmail_common.utils import (
     get_aws_clients,
     handle_error,
-    get_secret,
+    get_secret_value,
 )
 
 logger = logging.getLogger()
@@ -31,15 +31,13 @@ def lambda_handler(event, context):
             logger.error("TOKEN_SECRET_NAME environment variable not set")
             raise Exception("Internal Server Error")
 
-        secret = get_secret(secret_name)
+        secret = get_secret_value(secret_name)
 
         if token != secret:
             logger.warning("Invalid token")
-            raise Exception("Unauthorized")
+            return {"isAuthorized": False}
 
-        return {
-            "isAuthorized": True,
-        }
+        return {"isAuthorized": True}
 
     except Exception as e:
         handle_error(e)
