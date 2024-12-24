@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "properties": {
+    "contact_id": {
+      "type": "integer"
+    },
+    "organization_id": {
+      "type": "string"
+    },
+    "organization_name": {
+      "type": "string"
+    },
+    "email_username": {
+      "type": "string"
+    },
+    "vanity_name": {
+      "type": "string"
+    },
+    "email_address": {
+      "type": "string"
+    },
+    "first_name": {
+      "type": "string"
+    },
+    "last_name": {
+      "type": "string"
+    }
+  },
+  "required": ["organization_id", "vanity_name"],
+  "additionalProperties": false
+}
