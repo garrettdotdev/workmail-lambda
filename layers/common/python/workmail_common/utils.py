@@ -157,9 +157,14 @@ def handle_error(e: Exception) -> Dict[str, Any]:
             return {
                 "statusCode": status_code,
                 "body": json.dumps({"error": message_func()}),
+                "isAuthorized": False,
             }
     logger.error(f"Unexpected error occurred: {e}")
-    return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+    return {
+        "statusCode": 500,
+        "body": json.dumps({"error": str(e)}),
+        "isAuthorized": False,
+    }
 
 
 def load_schema(schema_path: str) -> Dict[str, Any]:
@@ -174,8 +179,32 @@ def load_schema(schema_path: str) -> Dict[str, Any]:
         raise
 
 
-def validate(body: Dict[str, Any], schema: Dict[str, Any]) -> bool:
+def update_contact(
+    contact_id: int, custom_fields: Dict[str, str], config: Dict[str, str]
+) -> Dict[str, Any]:
+    """Update contact with custom fields."""
+    logger.info(f"Updating contact {contact_id} with custom fields {custom_fields}")
     try:
+        keap_base_url = config["KEAP_BASE_URL"]
+        keap_token = get_secret_value(config["KEAP_API_KEY_SECRET_NAME"])
+        url = f"{keap_base_url}contacts/{contact_id}"
+        headers = {
+            "Authorization": f"Bearer {keap_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {"custom_fields": custom_fields}
+        response = requests.patch(url, headers=headers, json=payload)
+        if response.status_code != 200:
+            raise ValueError(f"Failed to update contact {contact_id}: {response.text}")
+        logger.info(f"Updated contact {contact_id} with custom fields {custom_fields}")
+        return response.json()
+    except Exception as e:
+        raise
+
+
+def validate(body: Dict[str, Any], schema_path: str) -> bool:
+    try:
+        schema = load_schema(schema_path)
         validator = fastjsonschema.compile(schema)
         validator(body)
         return True
@@ -183,14 +212,13 @@ def validate(body: Dict[str, Any], schema: Dict[str, Any]) -> bool:
         raise
 
 
-def process_input(body: Dict[str, Any], schemapath: str) -> Dict[str, Any]:
-    schema = load_schema(schemapath)
+def process_input(body: Dict[str, Any], schema_path: str) -> Dict[str, Any]:
     try:
-        validate(body, schema)
+        validate(body, schema_path)
 
         full_domain, root_domain = extract_domain(body["vanity_name"])
         body["vanity_name"] = full_domain
-        body["org_name"] = root_domain
+        body["organization_name"] = root_domain
 
         email_address = f"{body['email_username']}@{body['vanity_name']}"
         body["email_address"] = email_address
