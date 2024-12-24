@@ -81,6 +81,9 @@ Resources:
       Environment:
         Variables:
           TOKEN_SECRET_NAME: !Ref TokenSecretName
+      VpcConfig:
+        SecurityGroupIds: !Ref SecurityGroupIds
+        SubnetIds: !Ref SubnetIds
 
   # Authorizer for the API Gateway
   WorkMailAuthorizer:
@@ -133,6 +136,9 @@ Resources:
       Environment:
         Variables:
           WORKMAIL_STEPFUNCTION_ARN: !Ref WorkMailStepFunction
+      VpcConfig:
+        SecurityGroupIds: !Ref SecurityGroupIds
+        SubnetIds: !Ref SubnetIds
 
   # Execution role for the Step Function
   WorkMailStepFunctionExecutionRole:
@@ -279,6 +285,9 @@ Resources:
             Action:
               - secretsmanager:GetSecretValue
             Resource: !Ref DbSecretArn
+      VpcConfig:
+        SecurityGroupIds: !Ref SecurityGroupIds
+        SubnetIds: !Ref SubnetIds
 
   # Lambda function to create the WorkMail User
   CreateWorkMailUserFunction:
@@ -300,6 +309,20 @@ Resources:
               - workmail:DescribeUser
               - workmail:DescribeOrganization
             Resource: "*"
+      Environment:
+        Variables:
+          DB_SECRET_ARN: !Ref DbSecretArn
+          DB_CLUSTER_ARN: !Ref DbClusterArn
+          DATABASE_NAME: !Ref DbName
+          SNS_BOUNCE_ARN: !Ref SnsBounceTopic
+          SNS_COMPLAINT_ARN: !Ref SnsComplaintTopic
+          SNS_DELIVERY_ARN: !Ref SnsDeliveryTopic
+          KEAP_TAG: !Ref KeapTag
+          KEAP_API_KEY_SECRET_NAME: !Ref KeapApiKeySecretName
+          KEAP_BASE_URL: !Ref KeapBaseUrl
+      VpcConfig:
+        SecurityGroupIds: !Ref SecurityGroupIds
+        SubnetIds: !Ref SubnetIds
 
   # Lambda function to delete a WorkMail organization
   DeleteWorkMailOrgFunction:
