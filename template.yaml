@@ -93,6 +93,7 @@ Resources:
       ApiId: !Ref WorkMailApi
       AuthorizerType: REQUEST
       AuthorizerUri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthorizerFunction.Arn}/invocations"
+      AuthorizerPayloadFormatVersion: "2.0"
       IdentitySource:
         - "$request.header.Authorization"
       EnableSimpleResponses: true
