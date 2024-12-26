@@ -68,7 +68,7 @@ Resources:
         AllowHeaders: "*"
         AllowMethods: "POST"
         AllowOrigins: "*"
-      StageName: !If [IsProduction, "", !Ref Stage]
+      StageName: !If [IsProduction, "$default", !Ref Stage]
 
   # Lambda function acting as authorizer
   AuthorizerFunction:
@@ -182,14 +182,13 @@ Resources:
             "States": {
               "CreateWorkMailOrgFunction": {
                 "Type": "Task",
-                "Resource": !Sub "${CreateWorkMailOrgFunction.Arn}",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CreateWorkMailOrgFunction}",
                 "Next": "WaitForDomainVerification",
                 "ResultPath": "$.createWorkMailOrgResult",
                 "Catch": [
                   {
                     "ErrorEquals": ["States.ALL"],
-                    "Next": "$.errorInfo",
-                    "End": true
+                    "Next": "HandleError"
                   }
                 ]
               },
@@ -200,10 +199,16 @@ Resources:
               },
               "CheckDomainVerificationFunction": {
                 "Type": "Task",
-                "Resource": !Sub "${CheckDomainVerificationFunction.Arn}",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CheckDomainVerificationFunction}",
                 "Next": "IsDomainVerified",
                 "InputPath": "$.createWorkMailOrgResult",
                 "ResultPath": "$.domainVerificationResult",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "HandleError"
+                  }
+                ]
               },
               "IsDomainVerified": {
                 "Type": "Choice",
@@ -218,9 +223,20 @@ Resources:
               },
               "CreateWorkMailUserFunction": {
                 "Type": "Task",
-                "Resource": !Sub "${CreateWorkMailUserFunction.Arn}",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CreateWorkMailUserFunction}",
                 "InputPath": "$.createWorkMailOrgResult",
-                "End": true
+                "End": true,
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "HandleError"
+                  }
+                ]
+              },
+              "HandleError": {
+                "Type": "Fail",
+                "Error": "CreateWorkMailWorkflowError",
+                "Cause": "An error occurred in the WorkMail creation process"
               }
             }
           }
