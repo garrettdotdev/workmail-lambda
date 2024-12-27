@@ -76,14 +76,40 @@ Resources:
     Properties:
       CodeUri: authorizer_function/
       Handler: app.lambda_handler
+      Layers:
+        - !Ref WorkmailCommonLayer
       Policies:
         - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: "*"
       Environment:
         Variables:
           TOKEN_SECRET_NAME: !Ref TokenSecretName
       VpcConfig:
         SecurityGroupIds: !Ref SecurityGroupIds
         SubnetIds: !Ref SubnetIds
+
+  # Permission to allow API Gateway to invoke AuthorizerFunction
+  InvokeAuthorizerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AuthorizerFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkMailApi.ApiId}/*"
+
+  # Permission to allow API Gateway to invoke Integration
+  InvokeIntegrationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref StartCreateWorkMailWorkflowFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WorkMailApi.ApiId}/*"
 
   # Authorizer for the API Gateway
   WorkMailAuthorizer:
@@ -124,6 +150,8 @@ Resources:
       CodeUri: start_create_workmail_workflow_function/
       Handler: app.lambda_handler
       PackageType: Zip
+      Layers:
+        - !Ref WorkmailCommonLayer
       Policies:
         - AWSLambdaBasicExecutionRole
         - AWSLambdaVPCAccessExecutionRole
