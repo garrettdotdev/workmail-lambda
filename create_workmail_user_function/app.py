@@ -3,7 +3,6 @@ import logging
 import os
 import random
 import string
-from create_workmail_user_function.config import get_config
 from typing import Any, Dict
 from workmail_common.utils import (
     connect_to_rds,
@@ -31,6 +30,29 @@ def generate_random_password(length: int = 12) -> str:
     password += random.choices(characters, k=length - len(password))
     random.shuffle(password)
     return "".join(password)
+
+
+def get_config():
+    required_vars = [
+        "DB_SECRET_ARN",
+        "DB_CLUSTER_ARN",
+        "DATABASE_NAME",
+        "SNS_BOUNCE_ARN",
+        "SNS_COMPLAINT_ARN",
+        "SNS_DELIVERY_ARN",
+        "KEAP_BASE_URL",
+        "KEAP_API_KEY_SECRET_NAME",
+        "KEAP_TAG",
+    ]
+    config = {}
+    for var in required_vars:
+        value = os.environ.get(var)
+        if not value:
+            raise EnvironmentError(
+                f"Environment variable {var} is required but not set."
+            )
+        config[var] = value
+    return config
 
 
 def set_ses_notifications(
