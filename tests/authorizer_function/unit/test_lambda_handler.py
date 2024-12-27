@@ -10,7 +10,7 @@ class TestLambdaHandler(unittest.TestCase):
     @patch.dict(os.environ, {"TOKEN_SECRET_NAME": "test_secret_name"})
     @patch("authorizer_function.app.get_secret_value")
     def test_lambda_handler_authorized(self, mock_get_secret_value):
-        event = {"headers": {"Authorization": "Bearer valid_token"}}
+        event = {"headers": {"authorization": "Bearer valid_token"}}
         context = {}
 
         mock_get_secret_value.return_value = "valid_token"
