@@ -1,7 +1,7 @@
 # start_create_workmail_workflow_function/app.py
 import json
 import logging
-from start_create_workmail_workflow_function.config import get_config
+import os
 from typing import Dict, Any
 from workmail_common.utils import (
     get_aws_client,
@@ -10,6 +10,19 @@ from workmail_common.utils import (
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+def get_config():
+    required_vars = ["WORKMAIL_STEPFUNCTION_ARN"]
+    config = {}
+    for var in required_vars:
+        value = os.environ.get(var)
+        if not value:
+            raise EnvironmentError(
+                f"Environment variable {var} is required but not set."
+            )
+        config[var] = value
+    return config
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
