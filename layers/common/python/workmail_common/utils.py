@@ -4,7 +4,6 @@ import logging
 import re
 import boto3
 import mysql.connector
-import jwt
 import fastjsonschema
 import requests
 from botocore.config import Config
@@ -135,8 +134,6 @@ def handle_error(e: Exception) -> Dict[str, Any]:
             500,
             lambda: "Partial AWS credentials found",
         ),
-        jwt.ExpiredSignatureError: (401, lambda: "Token has expired"),
-        jwt.InvalidTokenError: (401, lambda: "Invalid token"),
         Boto3Error: (500, lambda: "An unspecified error occurred"),
         BotoCoreError: (500, lambda: "An unspecified error occurred"),
     }
