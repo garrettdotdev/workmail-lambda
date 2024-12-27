@@ -190,12 +190,11 @@ Resources:
               - Effect: "Allow"
                 Action:
                   - lambda:InvokeFunction
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource:
-                  - !GetAtt CreateWorkMailOrgFunction.Arn
-                  - !GetAtt CheckDomainVerificationFunction.Arn
-                  - !GetAtt CreateWorkMailUserFunction.Arn
+                Resource: "*"
+              - Effect: "Allow"
+                Action:
+                  - logs:*
+                Resource: "*"
 
   # Step Function to orchestrate the WorkMail creation process
   WorkMailStepFunction:
@@ -268,6 +267,19 @@ Resources:
               }
             }
           }
+      LoggingConfiguration:
+        Level: ALL
+        IncludeExecutionData: true
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt WorkMailStepFunctionLogGroup.Arn
+
+  # Log group for the Step Function
+  WorkMailStepFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/vendedlogs/states/${AWS::StackName}-WorkMailStepFunction"
+      RetentionInDays: 30
 
   # Lambda function to create the workmail organization and register the domain
   CreateWorkMailOrgFunction:
@@ -285,13 +297,32 @@ Resources:
         - Statement:
           - Effect: "Allow"
             Action:
+              - ds:AuthorizeApplication
+              - ds:CreateAlias
+              - ds:CreateIdentityPoolDirectory
+              - ds:DescribeDirectories
+              - ds:ListAuthorizedApplications
+              - ses:CreateReceiptRule
+              - ses:DescribeActiveReceiptRuleSet
+              - ses:GetIdentityDkimAttributes
+              - ses:GetIdentityPolicies
+              - ses:GetIdentityVerificationAttributes
+              - ses:PutIdentityPolicy
+              - ses:SetIdentityEmailNotificationEnabled
+              - ses:UpdateReceiptRule
+              - ses:VerifyDomainDkim
+              - ses:VerifyDomainIdentity
               - workmail:CreateOrganization
               - workmail:DescribeOrganization
+              - workmail:GetMailDomain
               - workmail:RegisterDomain
+              - workmail:RegisterMailDomain
             Resource: "*"
           - Effect: "Allow"
             Action: secretsmanager:GetSecretValue
-            Resource: !Ref DbSecretArn
+            Resource:
+              - !Ref DbSecretArn
+              - "*" # TODO: Change KeapApiSecretName to KeapApiSecretArn and replace this
       Environment:
         Variables:
           DB_SECRET_ARN: !Ref DbSecretArn
