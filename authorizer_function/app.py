@@ -15,7 +15,7 @@ def lambda_handler(event, context):
     """Main handler for Api Gateway authorizer"""
     logger.info(f"Received request: " + json.dumps(event))
 
-    token = event["headers"].get("Authorization")
+    token = event["headers"].get("authorization")
     if not token:
         logger.warning("No token provided")
         return {"isAuthorized": False}
@@ -35,7 +35,7 @@ def lambda_handler(event, context):
         if token != secret:
             logger.warning("Invalid token")
             return {"isAuthorized": False}
-
+        logger.info("Request is authorized.")
         return {"isAuthorized": True}
 
     except Exception as e:
