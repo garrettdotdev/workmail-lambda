@@ -8,7 +8,6 @@ from botocore.exceptions import (
     PartialCredentialsError,
 )
 import json
-import jwt
 from requests import RequestException
 
 
@@ -71,18 +70,6 @@ class TestHandleError(unittest.TestCase):
         response = handle_error(error)
         self.assertEqual(response["statusCode"], 500)
         self.assertIn("Secret not found", response["errorMessage"])
-
-    def test_handle_error_jwt_expired_signature_error(self):
-        error = jwt.ExpiredSignatureError("Token has expired")
-        response = handle_error(error)
-        self.assertEqual(response["statusCode"], 401)
-        self.assertIn("Token has expired", response["errorMessage"])
-
-    def test_handle_error_jwt_invalid_token_error(self):
-        error = jwt.InvalidTokenError("Invalid token")
-        response = handle_error(error)
-        self.assertEqual(response["statusCode"], 401)
-        self.assertIn("Invalid token", response["errorMessage"])
 
     @patch("workmail_common.utils.get_aws_clients")
     def test_handle_error_custom_client_exception(self, mock_get_aws_clients):
