@@ -18,7 +18,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         # Mocking the WorkMail client
         mock_workmail_client = MagicMock()
-        mock_workmail_client.describe_mail_domain.return_value = {
+        mock_workmail_client.get_mail_domain.return_value = {
             "OwnershipVerificationStatus": "VERIFIED",
             "DkimVerificationStatus": "VERIFIED",
         }
@@ -28,7 +28,7 @@ class TestLambdaHandler(unittest.TestCase):
         context = {}
 
         response = lambda_handler(event, context)
-        self.assertEqual(response, {"domainVerification": True})
+        self.assertEqual(response, {"domainVerified": True})
 
     @patch("check_domain_verification_function.app.get_aws_client")
     @patch("check_domain_verification_function.app.validate")
@@ -42,11 +42,9 @@ class TestLambdaHandler(unittest.TestCase):
         event = {"organization_id": "org-123", "vanity_name": "example.com"}
         context = {}
 
-        lambda_handler(event, context)
-        mock_handle_error.assert_called_once()
-        self.assertTrue(
-            "Input validation failed" in str(mock_handle_error.call_args[0][0])
-        )
+        with self.assertRaises(Exception) as context_manager:
+            lambda_handler(event, context)
+        self.assertTrue("Input validation failed" in str(context_manager.exception))
 
     @patch("check_domain_verification_function.app.get_aws_client")
     @patch("check_domain_verification_function.app.validate")
@@ -59,7 +57,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         # Mocking the WorkMail client with an unexpected response
         mock_workmail_client = MagicMock()
-        mock_workmail_client.describe_mail_domain.return_value = {
+        mock_workmail_client.get_mail_domain.return_value = {
             "UnexpectedKey": "UnexpectedValue"
         }
         mock_get_aws_client.return_value = mock_workmail_client
@@ -67,11 +65,10 @@ class TestLambdaHandler(unittest.TestCase):
         event = {"organization_id": "org-123", "vanity_name": "example.com"}
         context = {}
 
-        lambda_handler(event, context)
-        mock_handle_error.assert_called_once()
+        with self.assertRaises(Exception) as context_manager:
+            lambda_handler(event, context)
         self.assertTrue(
-            "Unexpected response from WorkMail"
-            in str(mock_handle_error.call_args[0][0])
+            "Unexpected response from WorkMail" in str(context_manager.exception)
         )
 
     @patch("check_domain_verification_function.app.get_aws_client")
@@ -85,7 +82,7 @@ class TestLambdaHandler(unittest.TestCase):
 
         # Mocking the WorkMail client with a verification failure response
         mock_workmail_client = MagicMock()
-        mock_workmail_client.describe_mail_domain.return_value = {
+        mock_workmail_client.get_mail_domain.return_value = {
             "OwnershipVerificationStatus": "PENDING",
             "DkimVerificationStatus": "PENDING",
         }
@@ -95,7 +92,7 @@ class TestLambdaHandler(unittest.TestCase):
         context = {}
 
         response = lambda_handler(event, context)
-        self.assertEqual(response, {"domainVerification": False})
+        self.assertEqual(response, {"domainVerified": False})
 
 
 if __name__ == "__main__":

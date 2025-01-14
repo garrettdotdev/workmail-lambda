@@ -7,30 +7,30 @@ from create_workmail_org_function.app import lambda_handler
 
 class TestLambdaHandler(unittest.TestCase):
 
-    @patch("create_workmail_org_function.app.get_config")
-    @patch("create_workmail_org_function.app.get_aws_clients")
-    @patch("create_workmail_org_function.app.connect_to_rds")
-    @patch("create_workmail_org_function.app.process_input")
-    @patch("create_workmail_org_function.app.get_client_info")
-    @patch("create_workmail_org_function.app.create_workmail_org")
-    @patch("create_workmail_org_function.app.register_workmail_organization")
-    @patch("create_workmail_org_function.app.get_dns_records")
+    @patch("create_workmail_org_function.app.keap_contact_add_to_group_via_proxy")
+    @patch("create_workmail_org_function.app.keap_contact_create_note_via_proxy")
     @patch("create_workmail_org_function.app.prepare_keap_updates")
-    @patch("create_workmail_org_function.app.update_contact")
-    @patch("create_workmail_org_function.app.add_contact_to_group")
+    @patch("create_workmail_org_function.app.get_dns_records")
+    @patch("create_workmail_org_function.app.register_workmail_organization")
+    @patch("create_workmail_org_function.app.create_workmail_org")
+    @patch("create_workmail_org_function.app.get_client_info")
+    @patch("create_workmail_org_function.app.process_input")
+    @patch("create_workmail_org_function.app.connect_to_rds")
+    @patch("create_workmail_org_function.app.get_aws_clients")
+    @patch("create_workmail_org_function.app.get_config")
     def test_lambda_handler_success(
         self,
-        mock_add_contact_to_group,
-        mock_update_contact,
-        mock_prepare_keap_updates,
-        mock_get_dns_records,
-        mock_register_workmail_organization,
-        mock_create_workmail_org,
-        mock_get_client_info,
-        mock_process_input,
-        mock_connect_to_rds,
-        mock_get_aws_clients,
         mock_get_config,
+        mock_get_aws_clients,
+        mock_connect_to_rds,
+        mock_process_input,
+        mock_get_client_info,
+        mock_create_workmail_org,
+        mock_register_workmail_organization,
+        mock_get_dns_records,
+        mock_prepare_keap_updates,
+        mock_keap_contact_create_note_via_proxy,
+        mock_keap_contact_add_to_group_via_proxy,
     ):
         # Arrange
         event = {
@@ -77,32 +77,30 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(result["first_name"], "John")
         self.assertEqual(result["last_name"], "Doe")
 
-    @patch("create_workmail_org_function.app.get_config")
-    @patch("create_workmail_org_function.app.get_aws_clients")
-    @patch("create_workmail_org_function.app.connect_to_rds")
-    @patch("create_workmail_org_function.app.process_input")
-    @patch("create_workmail_org_function.app.get_client_info")
-    @patch("create_workmail_org_function.app.create_workmail_org")
-    @patch("create_workmail_org_function.app.register_workmail_organization")
-    @patch("create_workmail_org_function.app.get_dns_records")
+    @patch("create_workmail_org_function.app.keap_contact_add_to_group_via_proxy")
+    @patch("create_workmail_org_function.app.keap_contact_create_note_via_proxy")
     @patch("create_workmail_org_function.app.prepare_keap_updates")
-    @patch("create_workmail_org_function.app.update_contact")
-    @patch("create_workmail_org_function.app.add_contact_to_group")
-    @patch("create_workmail_org_function.app.handle_error")
+    @patch("create_workmail_org_function.app.get_dns_records")
+    @patch("create_workmail_org_function.app.register_workmail_organization")
+    @patch("create_workmail_org_function.app.create_workmail_org")
+    @patch("create_workmail_org_function.app.get_client_info")
+    @patch("create_workmail_org_function.app.process_input")
+    @patch("create_workmail_org_function.app.connect_to_rds")
+    @patch("create_workmail_org_function.app.get_aws_clients")
+    @patch("create_workmail_org_function.app.get_config")
     def test_lambda_handler_exception(
         self,
-        mock_handle_error,
-        mock_add_contact_to_group,
-        mock_update_contact,
-        mock_prepare_keap_updates,
-        mock_get_dns_records,
-        mock_register_workmail_organization,
-        mock_create_workmail_org,
-        mock_get_client_info,
-        mock_process_input,
-        mock_connect_to_rds,
-        mock_get_aws_clients,
         mock_get_config,
+        mock_get_aws_clients,
+        mock_connect_to_rds,
+        mock_process_input,
+        mock_get_client_info,
+        mock_create_workmail_org,
+        mock_register_workmail_organization,
+        mock_get_dns_records,
+        mock_prepare_keap_updates,
+        mock_keap_contact_create_note_via_proxy,
+        mock_keap_contact_add_to_group_via_proxy,
     ):
         # Arrange
         event = {
@@ -126,14 +124,12 @@ class TestLambdaHandler(unittest.TestCase):
         mock_connect_to_rds.return_value = MagicMock()
         exception = Exception("Test exception")
         mock_process_input.side_effect = exception
-        mock_handle_error.return_value = {"error": "Test exception"}
 
-        # Act
-        result = lambda_handler(event, context)
+        # Act & Assert
+        with self.assertRaises(Exception) as context_manager:
+            lambda_handler(event, context)
 
-        # Assert
-        self.assertEqual(result, {"error": "Test exception"})
-        mock_handle_error.assert_called_once_with(exception)
+        self.assertEqual(str(context_manager.exception), "Test exception")
 
 
 if __name__ == "__main__":
