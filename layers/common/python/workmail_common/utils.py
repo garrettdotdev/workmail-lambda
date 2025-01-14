@@ -6,6 +6,7 @@ import boto3
 import mysql.connector
 import fastjsonschema
 import requests
+import socket
 from botocore.config import Config
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import (
@@ -102,8 +103,14 @@ def get_aws_clients() -> Dict[str, Any]:
 
 
 def get_aws_client(service_name: str) -> boto3.client:
+    logger.info(f"Initializing {service_name} client")
+    client_config = Config(
+        connect_timeout=5, retries={"max_attempts": 2, "mode": "adaptive"}
+    )
     try:
-        client = boto3.client(service_name)
+        client = boto3.client(service_name, config=client_config)
+        service_ip = socket.gethostbyname(urlparse(client.meta.endpoint_url).hostname)
+        logger.info(f"Returning {service_name} client at {service_ip}")
         return client
     except Exception as e:
         raise
@@ -177,6 +184,7 @@ def load_schema(schema_path: str) -> Dict[str, Any]:
         raise
 
 
+# TODO: Remove this. Using ::update_contact_via_proxy instead.
 def update_contact(
     contact_id: int, custom_fields: Dict[str, str], config: Dict[str, str]
 ) -> Dict[str, Any]:
@@ -197,6 +205,76 @@ def update_contact(
         logger.info(f"Updated contact {contact_id} with custom fields {custom_fields}")
         return response.json()
     except Exception as e:
+        raise
+
+
+def keap_contact_add_to_group_via_proxy(
+    contact_id: int, tag_id: int, config: Dict[str, str]
+) -> Dict[str, Any]:
+    """Add contact to a group."""
+    logger.info(f"Applying tag {tag_id} to contact {contact_id}")
+    try:
+        url = config["PROXY_ENDPOINT"]
+        proxy_endpoint_host = config["PROXY_ENDPOINT_HOST"]
+        keap_token = get_secret_value(config["KEAP_API_KEY_SECRET_NAME"])
+        headers = {
+            "Host": proxy_endpoint_host,
+            "Forward-to": f"tags/{tag_id}/contacts:applyTags",
+            "Authorization": f"Bearer {keap_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "contact_ids": [
+                contact_id,
+            ]
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code != 200:
+            raise ValueError(
+                f"Failed to apply tag {tag_id} to contact {contact_id}: {response.text}"
+            )
+        logger.info(f"Applied tag {tag_id} to contact {contact_id}")
+        return response.json()
+    except Exception as e:
+        logger.error(
+            f"Exception occurred while attempting to apply tag {tag_id} to contact {contact_id}: {e}"
+        )
+        raise
+
+
+def keap_contact_create_note_via_proxy(
+    contact_id: int, title: str, content: Dict[str, str], config: Dict[str, str]
+) -> Dict[str, Any]:
+    """Update contact with custom fields."""
+    logger.info(f"Sending custom fields for contact {contact_id} via proxy endpoint")
+    logger.info(f"{content}")
+    try:
+        url = config["PROXY_ENDPOINT"]
+        proxy_endpoint_host = config["PROXY_ENDPOINT_HOST"]
+        keap_token = get_secret_value(config["KEAP_API_KEY_SECRET_NAME"])
+        headers = {
+            "Host": proxy_endpoint_host,
+            "Forward-to": f"contacts/{contact_id}/notes",
+            "Authorization": f"Bearer {keap_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "text": json.dumps(content),
+            "title": title,
+            "type": "Other",
+            "user_id": 1,
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code != 201:
+            raise ValueError(
+                f"Unexpected response code {response.status_code}. Response text: {response.text}"
+            )
+        logger.info(f"Add note to contact {contact_id} via proxy endpoint")
+        return response.json()
+    except Exception as e:
+        logger.error(
+            f"Failed to add note to contact {contact_id} via proxy endpoint: {e}"
+        )
         raise
 
 
