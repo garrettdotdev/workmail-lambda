@@ -2,6 +2,15 @@
 
 ---
 
+### Update (14 January 2025)
+First successful live end-to-end test was completed last night. Code and tests have been updated. I have quite a bit of work to do on the documentation...that will be forthcoming soon. Ish. There are a few oddities in the code which are required in my client's case because of environmental and other restrictions. Adapting this project to a more "general" case would require some modification but shouldn't be difficult, as mostly it would require removals and simplifications. If there's sufficient interest in a more generalized form of this project, then I'll be happy to work on that. Y'all let me know.
+
+In any case, I hope the code here can help provide a practical example of how to automate WorkMail deployments in the absence of native CloudFormation support.
+
+We haven't quite reached it's final "version 1.0" form yet, but we're in the home stretch. Mostly what's left to work on is the Keap/InfusionSoft integration. If that's not something you need, the rest of the code is (mostly) complete.
+
+---
+
 ### Update (23 December 2024)
 Units tests have been updated. They're not in their final form as development is ongoing; some are "quick and dirty" sanity-checks. "Finalized" unit tests and integration tests coming soon-ish, along with more useful documentation.
 
