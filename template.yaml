@@ -82,6 +82,10 @@ Resources:
     Properties:
       CodeUri: authorizer_function/
       Handler: app.lambda_handler
+      AutoPublishAlias: latest
+      DeploymentPreference:
+        Enabled: true
+        Type: AllAtOnce
       Layers:
         - !Ref WorkmailCommonLayer
       Policies:
@@ -155,6 +159,10 @@ Resources:
     Properties:
       CodeUri: start_create_workmail_workflow_function/
       Handler: app.lambda_handler
+      AutoPublishAlias: latest
+      DeploymentPreference:
+        Enabled: true
+        Type: AllAtOnce
       PackageType: Zip
       Layers:
         - !Ref WorkmailCommonLayer
@@ -293,6 +301,10 @@ Resources:
     Properties:
       CodeUri: create_workmail_org_function/
       Handler: app.lambda_handler
+      AutoPublishAlias: latest
+      DeploymentPreference:
+        Enabled: true
+        Type: AllAtOnce
       PackageType: Zip
       Layers:
         - !Ref WorkmailCommonLayer
@@ -352,6 +364,10 @@ Resources:
     Properties:
       CodeUri: check_domain_verification_function/
       Handler: app.lambda_handler
+      AutoPublishAlias: latest
+      DeploymentPreference:
+        Enabled: true
+        Type: AllAtOnce
       PackageType: Zip
       Layers:
         - !Ref WorkmailCommonLayer
@@ -384,6 +400,10 @@ Resources:
     Properties:
       CodeUri: create_workmail_user_function/
       Handler: app.lambda_handler
+      AutoPublishAlias: latest
+      DeploymentPreference:
+        Enabled: true
+        Type: AllAtOnce
       PackageType: Zip
       Layers:
           - !Ref WorkmailCommonLayer
@@ -427,6 +447,10 @@ Resources:
     Properties:
       CodeUri: delete_workmail_org_function/
       Handler: app.lambda_handler
+      AutoPublishAlias: latest
+      DeploymentPreference:
+        Enabled: true
+        Type: AllAtOnce
       PackageType: Zip
       Layers:
         - !Ref WorkmailCommonLayer
