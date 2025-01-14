@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
 Description: >
-  Serverless application to automate AWS WorkMail creation and cancellation.
+  Serverless application to automate AWS WorkMail creation and cancellation with Keap/InfusionSoft integration.
 
 
 Metadata:
