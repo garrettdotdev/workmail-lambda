@@ -9,7 +9,7 @@ from workmail_common.utils import (
     handle_error,
     get_aws_client,
     validate,
-    update_contact,
+    keap_contact_create_note_via_proxy,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,8 @@ def get_config():
         "KEAP_BASE_URL",
         "KEAP_API_KEY_SECRET_NAME",
         "KEAP_TAG",
+        "PROXY_ENDPOINT",
+        "PROXY_ENDPOINT_HOST",
     ]
     config = {}
     for var in required_vars:
@@ -82,7 +84,7 @@ def set_ses_notifications(
             )
         logger.info(f"Set SES notifications for identity {identity}")
     except Exception as e:
-        raise
+        raise e
 
 
 def update_workmail_registration(contact_id, organization_id, connection):
@@ -150,27 +152,33 @@ def lambda_handler(event, context):
 
         workmail_client.register_to_work_mail(
             OrganizationId=organization_id,
-            UserId=user_id,
+            EntityId=user_id,
             Email=email_address,
+        )
+
+        # Endpoint issue. Fix later.
+        # ses_client = get_aws_client("ses")
+        # set_ses_notifications(email_address, ses_client, config=config)
+
+        custom_fields = {
+            "API6": email_username,
+            "API7": password,
+            "API8": f"{organization_name}.awsapps.com/mail",
+        }
+        keap_contact_create_note_via_proxy(
+            contact_id, "workmail_credentials", custom_fields, config
         )
 
         secrets_manager_client = get_aws_client("secretsmanager")
         connection = connect_to_rds(secrets_manager_client, config)
         update_workmail_registration(contact_id, organization_id, connection)
 
-        ses_client = get_aws_client("ses")
-        set_ses_notifications(email_address, ses_client, config=config)
-
-        custom_fields = {
-            "API6": email_address,
-            "API7": password,
-            "API8": f"{organization_name}.awsapps.com/mail",
-        }
-
-        update_contact(contact_id, custom_fields, config)
-
         logger.info(f"User created successfully")
         return {"userCreated": True}
 
     except Exception as e:
-        return handle_error(e)
+        raise e
+
+    finally:
+        if "connection" in locals() and connection.is_connected():
+            connection.close()
