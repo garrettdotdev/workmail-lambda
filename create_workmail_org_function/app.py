@@ -2,48 +2,21 @@
 import boto3
 import json
 import os
-import requests
 import logging
 import uuid
 import time
 from typing import Dict, Any, List, Tuple
 from workmail_common.utils import (
-    handle_error,
     process_input,
     connect_to_rds,
     get_aws_clients,
-    get_secret_value,
-    update_contact,
+    keap_contact_create_note_via_proxy,
+    keap_contact_add_to_group_via_proxy,
 )
 
 # Initialize logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-
-def add_contact_to_group(
-    contact_id: int, tag_id: int, config: Dict[str, str]
-) -> Dict[str, Any]:
-    """Add contact to a group."""
-    try:
-        logger.info(f"Adding contact {contact_id} to tag {tag_id}")
-        keap_base_url = config["KEAP_BASE_URL"]
-        keap_token = get_secret_value(config["KEAP_API_KEY_SECRET_NAME"])
-        url = f"{keap_base_url}contacts/{contact_id}/tags"
-        headers = {
-            "Authorization": f"Bearer {keap_token}",
-            "Content-Type": "application/json",
-        }
-        payload = {"tagIds": [tag_id]}
-        response = requests.post(url, headers=headers, json=payload)
-        if response.status_code != 200:
-            raise ValueError(
-                f"Failed to add contact {contact_id} to tag {tag_id}: {response.text}"
-            )
-        logger.info(f"Added contact {contact_id} to tag {tag_id}")
-        return response.json()
-    except Exception as e:
-        raise
 
 
 def create_workmail_org(
@@ -113,6 +86,8 @@ def get_config():
         "KEAP_BASE_URL",
         "KEAP_API_KEY_SECRET_NAME",
         "KEAP_TAG",
+        "PROXY_ENDPOINT",
+        "PROXY_ENDPOINT_HOST",
     ]
     config = {}
     for var in required_vars:
@@ -134,7 +109,7 @@ def get_dns_records(
     logger.info(f"Getting DNS records for domain {domain_name}")
     dns_records = []
     try:
-        mail_domain_response = workmail_client.describe_mail_domain(
+        mail_domain_response = workmail_client.get_mail_domain(
             OrganizationId=organization_id, DomainName=domain_name
         )
         dns_records = mail_domain_response["Records"]
@@ -178,19 +153,22 @@ def prepare_keap_updates(dns_records: List[Dict[str, str]]) -> Dict[str, str]:
     updates = {}
     try:
         for record in dns_records:
+            type = record["Type"]
             hostname = record["Hostname"]
             value = record["Value"]
 
-            if "_amazonses" in hostname:
-                updates["API1"] = value
+            if type == "MX":
+                updates["API1"] = hostname
+            elif "_amazonses" in hostname:
+                updates["API2"] = value
             elif "_domainkey" in hostname:
                 alnum_string = value.split(".")[0]
-                if "API2" not in updates:
-                    updates["API2"] = alnum_string
-                elif "API3" not in updates:
+                if "API3" not in updates:
                     updates["API3"] = alnum_string
-                else:
+                elif "API4" not in updates:
                     updates["API4"] = alnum_string
+                else:
+                    updates["API5"] = alnum_string
         logger.info(f"Prepared DNS info to send to Keap: {updates}")
     except Exception as e:
         raise
@@ -275,9 +253,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         updates = prepare_keap_updates(dns_records)
 
-        update_contact(contact_id, updates, config=config)
+        keap_contact_create_note_via_proxy(
+            contact_id, "workmail_dns_records", updates, config=config
+        )
 
-        add_contact_to_group(contact_id, config["KEAP_TAG"], config=config)
+        keap_contact_add_to_group_via_proxy(
+            contact_id, int(config["KEAP_TAG"]), config=config
+        )
 
         logger.info("WorkMail organization and user creation initiated")
 
@@ -292,7 +274,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "last_name": last_name,
         }
     except Exception as e:
-        return handle_error(e)
+        logger.exception(str(e))
+        raise e
     finally:
         if "connection" in locals() and connection.is_connected():
             connection.close()
