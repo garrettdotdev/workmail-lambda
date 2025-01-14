@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "contact_id": {
+      "type": "integer"
+    },
+    "vanity_name": {
+      "type": "string"
+    }
+  },
+  "required": ["contact_id", "vanity_name"],
+  "additionalProperties": false
+}
