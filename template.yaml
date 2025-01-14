@@ -48,6 +48,12 @@ Parameters:
   SecurityGroupIds:
     Type: List<String>
     Description: List of security group IDs for the Lambda functions
+  ProxyEndpoint:
+    Type: String
+    Description: Endpoint to proxy requests to Keap API
+  ProxyEndpointHost:
+    Type: String
+    Description: Hostname for routing to the proxy endpoint
 
 Globals:
   Function:
@@ -221,7 +227,7 @@ Resources:
               },
               "WaitForDomainVerification": {
                 "Type": "Wait",
-                "Seconds": 300,
+                "Seconds": 1800,
                 "Next": "CheckDomainVerificationFunction"
               },
               "CheckDomainVerificationFunction": {
@@ -334,6 +340,8 @@ Resources:
           KEAP_TAG: !Ref KeapTag
           KEAP_API_KEY_SECRET_NAME: !Ref KeapApiKeySecretName
           KEAP_BASE_URL: !Ref KeapBaseUrl
+          PROXY_ENDPOINT: !Ref ProxyEndpoint
+          PROXY_ENDPOINT_HOST: !Ref ProxyEndpointHost
       VpcConfig:
         SecurityGroupIds: !Ref SecurityGroupIds
         SubnetIds: !Ref SubnetIds
@@ -356,6 +364,11 @@ Resources:
             Action:
               - workmail:DescribeOrganization
               - workmail:DescribeDomain
+              - workmail:GetMailDomain
+              - ses:GetIdentityVerificationAttributes
+              - ses:GetIdentityDkimAttributes
+              - ses:DescribeActiveReceiptRuleSet
+              - ses:GetIdentityPolicies
             Resource: "*"
           - Effect: "Allow"
             Action:
@@ -384,6 +397,12 @@ Resources:
               - workmail:CreateUser
               - workmail:DescribeUser
               - workmail:DescribeOrganization
+              - workmail:RegisterToWorkMail
+              - ses:GetIdentityVerificationAttributes
+              - ses:GetIdentityDkimAttributes
+              - ses:DescribeActiveReceiptRuleSet
+              - ses:GetIdentityPolicies
+              - secretsmanager:GetSecretValue
             Resource: "*"
       Environment:
         Variables:
@@ -396,6 +415,8 @@ Resources:
           KEAP_TAG: !Ref KeapTag
           KEAP_API_KEY_SECRET_NAME: !Ref KeapApiKeySecretName
           KEAP_BASE_URL: !Ref KeapBaseUrl
+          PROXY_ENDPOINT: !Ref ProxyEndpoint
+          PROXY_ENDPOINT_HOST: !Ref ProxyEndpointHost
       VpcConfig:
         SecurityGroupIds: !Ref SecurityGroupIds
         SubnetIds: !Ref SubnetIds
