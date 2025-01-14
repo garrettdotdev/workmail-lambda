@@ -2,7 +2,10 @@
 import json
 import logging
 import os
+import socket
+import uuid
 from typing import Dict, Any
+from urllib.parse import urlparse
 from workmail_common.utils import (
     get_aws_client,
     handle_error,
@@ -33,13 +36,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     sfn_client = get_aws_client("stepfunctions")
 
+    service_ip = socket.gethostbyname(urlparse(sfn_client.meta.endpoint_url).hostname)
+    logger.info(f"Step Functions client at {service_ip}")
+
     try:
         logger.info(f"Launching state machine")
+        execution_name = f"create_workmail_workflow_{uuid.uuid4()}"
         response = sfn_client.start_execution(
             stateMachineArn=config["WORKMAIL_STEPFUNCTION_ARN"],
-            name="create_workmail_workflow",
+            name=execution_name,
             input=json.dumps(event),
         )
+        logger.info(f"State machine response: {response}")
         return {
             "statusCode": 200,
             "body": json.dumps(
