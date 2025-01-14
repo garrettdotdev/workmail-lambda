@@ -43,13 +43,7 @@ def get_workmail_organization_id(
 ) -> str:
     try:
         cursor = connection.cursor()
-        sql = """
-        SELECT organization_id
-        FROM workmail_organizations
-        WHERE ownerid = %s
-        AND vanity_name = %s
-        LIMIT 1
-        """
+        sql = """SELECT organization_id FROM workmail_organizations WHERE ownerid = %s AND vanity_name = %s LIMIT 1"""
         cursor.execute(sql, (contact_id, vanity_name))
         result = cursor.fetchone()
 
@@ -66,6 +60,9 @@ def get_workmail_organization_id(
     except Exception as e:
         logger.error(f"Unexpected error querying RDS: {e}")
         raise
+    finally:
+        if "cursor" in locals() and cursor:
+            cursor.close()
 
 
 def delete_workmail_organization(
@@ -93,10 +90,30 @@ def delete_workmail_organization(
         raise
 
 
+def unregister_workmail_organization(organization_id, connection) -> bool:
+    try:
+        logger.info(f"Attempting to unregister WorkMail organization {organization_id}")
+        cursor = connection.cursor()
+        sql = """DELETE FROM workmail_organizations WHERE organization_id = %s"""
+        cursor.execute(sql, (organization_id,))
+        connection.commit()
+        logger.info(f"Unregistered WorkMail organization {organization_id}")
+        return True
+    except Exception as e:
+        return False
+    finally:
+        if "cursor" in locals() and cursor:
+            cursor.close()
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Lambda function handler."""
+    logger.info("Handling Lambda event")
     try:
         config = get_config()
-        aws_clients = get_aws_clients(region_name="us-east-1")
+        aws_clients = get_aws_clients()
+
+        connection = connect_to_rds(aws_clients["secretsmanager_client"], config=config)
 
         body = json.loads(event["body"])
 
@@ -108,11 +125,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         vanity_name = clean_input["vanity_name"]
 
         organization_id = get_workmail_organization_id(
-            contact_id, vanity_name, aws_clients["rds_client"], config=config
+            contact_id, vanity_name, connection
         )
         delete_workmail_organization_response = delete_workmail_organization(
-            organization_id, aws_clients["cloudformation_client"]
+            organization_id, aws_clients["workmail_client"]
         )
+        if not unregister_workmail_organization(
+            organization_id,
+            connection,
+        ):
+            logger.error(
+                f"Failed to unregister WorkMail organization {organization_id}. Please remove entry from workmail_organizations table."
+            )
 
         return {
             "statusCode": 200,
