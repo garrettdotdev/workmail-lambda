@@ -28,7 +28,7 @@ def lambda_handler(event, context):
 
         workmail_client = get_aws_client("workmail")
 
-        mail_domain_response = workmail_client.describe_mail_domain(
+        mail_domain_response = workmail_client.get_mail_domain(
             OrganizationId=organization_id, DomainName=vanity_name
         )
 
@@ -50,10 +50,10 @@ def lambda_handler(event, context):
             logger.warning(
                 f"Domain not verified: Ownership = {ownership_verification_status}, Dkim = {dkim_verification_status}"
             )
-            return {"domainVerification": False}
+            return {"domainVerified": False}
 
         logger.info(f"Domain is verified")
-        return {"domainVerification": True}
+        return {"domainVerified": True}
 
     except Exception as e:
-        return handle_error(e)
+        raise e
