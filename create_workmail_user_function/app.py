@@ -6,10 +6,10 @@ import string
 from typing import Any, Dict
 from workmail_common.utils import (
     connect_to_rds,
-    handle_error,
     get_aws_client,
     validate,
     keap_contact_create_note_via_proxy,
+    keap_contact_add_to_group_via_proxy,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def get_config():
         "SNS_DELIVERY_ARN",
         "KEAP_BASE_URL",
         "KEAP_API_KEY_SECRET_NAME",
-        "KEAP_TAG",
+        "KEAP_TAG_COMPLETE",
         "PROXY_ENDPOINT",
         "PROXY_ENDPOINT_HOST",
     ]
@@ -167,6 +167,9 @@ def lambda_handler(event, context):
         }
         keap_contact_create_note_via_proxy(
             contact_id, "workmail_credentials", custom_fields, config
+        )
+        keap_contact_add_to_group_via_proxy(
+            contact_id, int(config["KEAP_TAG_PENDING"]), config=config
         )
 
         secrets_manager_client = get_aws_client("secretsmanager")

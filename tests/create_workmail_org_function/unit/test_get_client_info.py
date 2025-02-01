@@ -22,7 +22,7 @@ class TestGetClientInfo(unittest.TestCase):
         self.assertEqual(first_name, "John")
         self.assertEqual(last_name, "Doe")
         mock_cursor.execute.assert_called_once_with(
-            """SELECT ownerfirstname, ownerlastname FROM app WHERE ownerid = %s AND appname = %s LIMIT 1""",
+            """SELECT ownerfirstname, ownerlastname FROM app WHERE ownerid = %s LIMIT 1""",
             (1, "test-app"),
         )
         mock_cursor.close.assert_called_once()
@@ -42,10 +42,10 @@ class TestGetClientInfo(unittest.TestCase):
 
         self.assertEqual(
             str(context.exception),
-            "No client found with contact_id 1 and appname test-app",
+            "No client found with contact_id 1",
         )
         mock_cursor.execute.assert_called_once_with(
-            """SELECT ownerfirstname, ownerlastname FROM app WHERE ownerid = %s AND appname = %s LIMIT 1""",
+            """SELECT ownerfirstname, ownerlastname FROM app WHERE ownerid = %s LIMIT 1""",
             (1, "test-app"),
         )
         mock_cursor.close.assert_called_once()

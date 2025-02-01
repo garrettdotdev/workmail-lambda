@@ -103,7 +103,6 @@ The required input parameters for each function are defined in JSON schema files
 
 ### Create Endpoint (`workmail_create/schemas/input_schema.json`)
 - **contact_id**: Used to look up customer information in the RDS database.
-- **appname**: Used along with `contact_id` to query the RDS database.
 - **email_username**: Username for the email address.
 - **vanity_name**: Domain name for the email address.
 
@@ -154,7 +153,6 @@ To create a WorkMail organization, send a POST request to the `/workmail/create`
 ```json
 {
   "contact_id": "12345",
-  "appname": "exampleapp",
   "email_username": "john.doe",
   "vanity_name": "example.com"
 }

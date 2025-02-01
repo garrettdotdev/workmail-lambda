@@ -35,10 +35,18 @@ Parameters:
   KeapApiKeySecretName:
     Type: String
     Description: Name of the Secrets Manager secret for the Keap API key
-  KeapTag:
+  KeapTagPending:
     Type: String
     Default: "3153"
     Description: Keap tag to apply to contact when WorkMail is created
+  KeapTagComplete:
+    Type: String
+    Default: "3155"
+    Description: Keap tag to apply to contact when WorkMail is created
+  KeapTagCancel:
+    Type: String
+    Default: "3173"
+    Description: Keap tag to apply to contact when WorkMail is canceled
   VpcId:
     Type: String
     Description: ID of the VPC for the Lambda functions
@@ -349,7 +357,7 @@ Resources:
           SNS_BOUNCE_ARN: !Ref SnsBounceTopic
           SNS_COMPLAINT_ARN: !Ref SnsComplaintTopic
           SNS_DELIVERY_ARN: !Ref SnsDeliveryTopic
-          KEAP_TAG: !Ref KeapTag
+          KEAP_TAG_PENDING: !Ref KeapTagPending
           KEAP_API_KEY_SECRET_NAME: !Ref KeapApiKeySecretName
           KEAP_BASE_URL: !Ref KeapBaseUrl
           PROXY_ENDPOINT: !Ref ProxyEndpoint
@@ -432,7 +440,7 @@ Resources:
           SNS_BOUNCE_ARN: !Ref SnsBounceTopic
           SNS_COMPLAINT_ARN: !Ref SnsComplaintTopic
           SNS_DELIVERY_ARN: !Ref SnsDeliveryTopic
-          KEAP_TAG: !Ref KeapTag
+          KEAP_TAG_COMPLETE: !Ref KeapTagComplete
           KEAP_API_KEY_SECRET_NAME: !Ref KeapApiKeySecretName
           KEAP_BASE_URL: !Ref KeapBaseUrl
           PROXY_ENDPOINT: !Ref ProxyEndpoint
@@ -482,6 +490,7 @@ Resources:
           DB_SECRET_ARN: !Ref DbSecretArn
           DB_CLUSTER_ARN: !Ref DbClusterArn
           DATABASE_NAME: !Ref DbName
+          KEAP_TAG_CANCEL: !Ref KeapTagCancel
           SNS_BOUNCE_ARN: !Ref SnsBounceTopic
           SNS_COMPLAINT_ARN: !Ref SnsComplaintTopic
           SNS_DELIVERY_ARN: !Ref SnsDeliveryTopic

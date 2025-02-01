@@ -85,7 +85,7 @@ def get_config():
         "SNS_DELIVERY_ARN",
         "KEAP_BASE_URL",
         "KEAP_API_KEY_SECRET_NAME",
-        "KEAP_TAG",
+        "KEAP_TAG_PENDING",
         "PROXY_ENDPOINT",
         "PROXY_ENDPOINT_HOST",
     ]
@@ -121,21 +121,18 @@ def get_dns_records(
 
 def get_client_info(
     contact_id: int,
-    appname: str,
     connection: Any,
 ) -> Tuple[str, str]:
     """Query RDS for customer information."""
-    logger.info(f"Querying RDS for contact_id {contact_id} and appname {appname}")
+    logger.info(f"Querying RDS for contact_id {contact_id}")
     try:
         cursor = connection.cursor()
-        sql = """SELECT ownerfirstname, ownerlastname FROM app WHERE ownerid = %s AND appname = %s LIMIT 1"""
-        cursor.execute(sql, (contact_id, appname))
+        sql = """SELECT ownerfirstname, ownerlastname FROM app WHERE ownerid = %s LIMIT 1"""
+        cursor.execute(sql, (contact_id))
         result = cursor.fetchone()
 
         if not result:
-            raise ValueError(
-                f"No client found with contact_id {contact_id} and appname {appname}"
-            )
+            raise ValueError(f"No client found with contact_id {contact_id}")
 
         first_name, last_name = result
         logger.info(f"Retrieved client information for contact_id {contact_id}")
@@ -218,7 +215,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         clean_input = process_input(body, schema_path)
 
         contact_id = clean_input["contact_id"]
-        appname = clean_input["appname"]
         vanity_name = clean_input["vanity_name"]
         organization_name = clean_input["organization_name"]
         email_username = clean_input["email_username"]
@@ -226,7 +222,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         first_name, last_name = get_client_info(
             contact_id,
-            appname,
             connection,
         )
 
@@ -258,7 +253,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
 
         keap_contact_add_to_group_via_proxy(
-            contact_id, int(config["KEAP_TAG"]), config=config
+            contact_id, int(config["KEAP_TAG_PENDING"]), config=config
         )
 
         logger.info("WorkMail organization and user creation initiated")

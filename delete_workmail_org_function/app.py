@@ -11,6 +11,7 @@ from workmail_common.utils import (
     process_input,
     connect_to_rds,
     get_aws_clients,
+    keap_contact_add_to_group_via_proxy,
 )
 
 # Initialize logging
@@ -23,6 +24,7 @@ def get_config():
         "DB_SECRET_ARN",
         "DB_CLUSTER_ARN",
         "DATABASE_NAME",
+        "KEAP_TAG_CANCEL",
         "SNS_BOUNCE_ARN",
         "SNS_COMPLAINT_ARN",
         "SNS_DELIVERY_ARN",
@@ -129,6 +131,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
         delete_workmail_organization_response = delete_workmail_organization(
             organization_id, aws_clients["workmail_client"]
+        )
+        keap_contact_add_to_group_via_proxy(
+            contact_id, int(config["KEAP_TAG_CANCEL"]), config=config
         )
         if not unregister_workmail_organization(
             organization_id,

@@ -37,7 +37,6 @@ class TestLambdaHandler(unittest.TestCase):
             "body": json.dumps(
                 {
                     "contact_id": 1,
-                    "appname": "test-app",
                     "vanity_name": "test-vanity",
                     "organization_name": "test-org",
                     "email_username": "testuser",
@@ -107,7 +106,6 @@ class TestLambdaHandler(unittest.TestCase):
             "body": json.dumps(
                 {
                     "contact_id": 1,
-                    "appname": "test-app",
                     "vanity_name": "test-vanity",
                     "organization_name": "test-org",
                     "email_username": "testuser",

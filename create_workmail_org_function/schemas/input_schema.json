@@ -4,9 +4,6 @@
     "contact_id": {
       "type": "integer"
     },
-    "appname": {
-      "type": "string"
-    },
     "email_username": {
       "type": "string"
     },
@@ -14,6 +11,6 @@
       "type": "string"
     }
   },
-  "required": ["contact_id", "appname", "email_username", "vanity_name"],
+  "required": ["contact_id", "email_username", "vanity_name"],
   "additionalProperties": false
 }
