@@ -169,7 +169,7 @@ def lambda_handler(event, context):
             contact_id, "workmail_credentials", custom_fields, config
         )
         keap_contact_add_to_group_via_proxy(
-            contact_id, int(config["KEAP_TAG_PENDING"]), config=config
+            contact_id, int(config["KEAP_TAG_COMPLETE"]), config=config
         )
 
         secrets_manager_client = get_aws_client("secretsmanager")
