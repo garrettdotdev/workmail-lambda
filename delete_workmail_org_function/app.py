@@ -24,10 +24,13 @@ def get_config():
         "DB_SECRET_ARN",
         "DB_CLUSTER_ARN",
         "DATABASE_NAME",
-        "KEAP_TAG_CANCEL",
         "SNS_BOUNCE_ARN",
         "SNS_COMPLAINT_ARN",
         "SNS_DELIVERY_ARN",
+        "KEAP_TAG_CANCEL",
+        "KEAP_BASE_URL",
+        "PROXY_ENDPOINT",
+        "PROXY_ENDPOINT_HOST",
     ]
     config = {}
     for var in required_vars:
