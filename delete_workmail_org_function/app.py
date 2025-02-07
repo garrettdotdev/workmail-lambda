@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError, BotoCoreError
 from typing import Dict, Any
 from workmail_common.utils import (
     handle_error,
-    process_input,
+    validate,
     connect_to_rds,
     get_aws_clients,
     keap_contact_add_to_group_via_proxy,
@@ -123,11 +123,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         body = json.loads(event["body"])
 
         pwd = os.path.dirname(os.path.abspath(__file__))
-        schema_path = os.path.join(pwd, "/schemas/input_schema.json")
-        clean_input = process_input(body, schema_path)
+        schema_path = os.path.join(pwd, "schemas/input_schema.json")
+        validate(body, schema_path)
 
-        contact_id = clean_input["contact_id"]
-        vanity_name = clean_input["vanity_name"]
+        contact_id = body["contact_id"]
+        vanity_name = body["vanity_name"]
 
         organization_id = get_workmail_organization_id(
             contact_id, vanity_name, connection
