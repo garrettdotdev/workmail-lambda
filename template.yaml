@@ -483,7 +483,21 @@ Resources:
               Action: rds-data:ExecuteStatement
               Resource: !Ref DbClusterArn
             - Effect: Allow
-              Action: cloudformation:DeleteStack
+              Action:
+                - cloudformation:DeleteStack
+                - workmail:DeleteOrganization
+                - workmail:DescribeOrganization
+                - workmail:ListOrganizations
+                - workmail:ListUsers
+                - workmail:DeleteUser
+                - workmail:DescribeUser
+                - ses:DeleteIdentity
+                - ses:DeleteIdentityPolicy
+                - ses:DeleteReceiptRule
+                - ses:DeleteVerifiedEmailAddress
+                - ses:DescribeActiveReceiptRuleSet
+                - ds:DescribeDirectories
+                - ds:ListAuthorizedApplications
               Resource: "*"
       Environment:
         Variables:
