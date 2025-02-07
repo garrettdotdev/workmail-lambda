@@ -56,7 +56,7 @@ def get_workmail_organization_id(
             raise ValueError(
                 f"No WorkMail organization_id found with contact_id={contact_id} and vanity_name={vanity_name}"
             )
-        organization_id = result
+        organization_id = result[0]
         logger.info(f"Found WorkMail stack with stack_id={organization_id}")
         return organization_id
     except (ClientError, BotoCoreError) as e:
