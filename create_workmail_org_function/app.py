@@ -128,7 +128,7 @@ def get_client_info(
     try:
         cursor = connection.cursor()
         sql = """SELECT ownerfirstname, ownerlastname FROM app WHERE ownerid = %s LIMIT 1"""
-        cursor.execute(sql, (contact_id))
+        cursor.execute(sql, (contact_id,))
         result = cursor.fetchone()
 
         if not result:
