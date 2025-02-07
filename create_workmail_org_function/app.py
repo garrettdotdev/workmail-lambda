@@ -150,11 +150,11 @@ def prepare_keap_updates(dns_records: List[Dict[str, str]]) -> Dict[str, str]:
     updates = {}
     try:
         for record in dns_records:
-            type = record["Type"]
+            recordtype = record["Type"]
             hostname = record["Hostname"]
             value = record["Value"]
 
-            if type == "MX":
+            if recordtype == "MX":
                 updates["API1"] = hostname
             elif "_amazonses" in hostname:
                 updates["API2"] = value
