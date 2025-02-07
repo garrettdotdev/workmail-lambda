@@ -504,10 +504,13 @@ Resources:
           DB_SECRET_ARN: !Ref DbSecretArn
           DB_CLUSTER_ARN: !Ref DbClusterArn
           DATABASE_NAME: !Ref DbName
-          KEAP_TAG_CANCEL: !Ref KeapTagCancel
           SNS_BOUNCE_ARN: !Ref SnsBounceTopic
           SNS_COMPLAINT_ARN: !Ref SnsComplaintTopic
           SNS_DELIVERY_ARN: !Ref SnsDeliveryTopic
+          KEAP_TAG_CANCEL: !Ref KeapTagCancel
+          KEAP_BASE_URL: !Ref KeapBaseUrl
+          PROXY_ENDPOINT: !Ref ProxyEndpoint
+          PROXY_ENDPOINT_HOST: !Ref ProxyEndpointHost
       VpcConfig:
         SecurityGroupIds: !Ref SecurityGroupIds
         SubnetIds: !Ref SubnetIds
