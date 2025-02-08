@@ -1,9 +1,8 @@
+# delete_workmail_org_function/app.py
 import json
 import os
-import boto3
 import logging
 import uuid
-from botocore.config import Config
 from botocore.exceptions import ClientError, BotoCoreError
 from typing import Dict, Any
 from workmail_common.utils import (
