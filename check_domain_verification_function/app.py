@@ -2,7 +2,6 @@
 import logging
 import os
 from workmail_common.utils import (
-    handle_error,
     get_aws_client,
     validate,
 )
