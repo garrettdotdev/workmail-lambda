@@ -232,7 +232,7 @@ Resources:
               "CreateWorkMailOrgFunction": {
                 "Type": "Task",
                 "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CreateWorkMailOrgFunction}",
-                "Next": "WaitForDomainVerification",
+                "Next": "CreateIamUserFunction",
                 "ResultPath": "$.createWorkMailOrgResult",
                 "Catch": [
                   {
@@ -241,10 +241,18 @@ Resources:
                   }
                 ]
               },
-              "WaitForDomainVerification": {
-                "Type": "Wait",
-                "Seconds": 1800,
-                "Next": "CheckDomainVerificationFunction"
+              "CreateIamUserFunction": {
+                "Type": "Task",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CreateIamUserFunction}",
+                "Next": "CheckDomainVerificationFunction",
+                "InputPath": "$.createWorkMailOrgResult",
+                "ResultPath": "$.createIamUserResult",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "HandleError"
+                  }
+                ]
               },
               "CheckDomainVerificationFunction": {
                 "Type": "Task",
@@ -269,6 +277,11 @@ Resources:
                   }
                 ],
                 "Default": "WaitForDomainVerification"
+              },
+              "WaitForDomainVerification": {
+                "Type": "Wait",
+                "Seconds": 1800,
+                "Next": "CheckDomainVerificationFunction"
               },
               "CreateWorkMailUserFunction": {
                 "Type": "Task",
@@ -360,6 +373,34 @@ Resources:
           KEAP_TAG_PENDING: !Ref KeapTagPending
           KEAP_API_KEY_SECRET_NAME: !Ref KeapApiKeySecretName
           KEAP_BASE_URL: !Ref KeapBaseUrl
+          PROXY_ENDPOINT: !Ref ProxyEndpoint
+          PROXY_ENDPOINT_HOST: !Ref ProxyEndpointHost
+      VpcConfig:
+        SecurityGroupIds: !Ref SecurityGroupIds
+        SubnetIds: !Ref SubnetIds
+
+  # Lambda function to create IAM User
+  CreateIamUserFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: create_iam_user_function/
+      Handler: app.lambda_handler
+      AutoPublishAlias: latest
+      DeploymentPreference:
+          Enabled: true
+          Type: AllAtOnce
+      PackageType: Zip
+      Layers:
+        - !Ref WorkmailCommonLayer
+      Role: arn:aws:iam::930751528773:role/Lambda_DevTest_Role # TODO: REMOVE after determining least privilege.
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - AWSXRayDaemonWriteAccess
+      Environment:
+        Variables:
+          AWS_ACCOUNT_ID: !Ref AWS::AccountId
+          KEAP_API_KEY_SECRET_NAME: !Ref KeapApiKeySecretName
           PROXY_ENDPOINT: !Ref ProxyEndpoint
           PROXY_ENDPOINT_HOST: !Ref ProxyEndpointHost
       VpcConfig:
