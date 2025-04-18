@@ -50,6 +50,12 @@ Parameters:
   VpcId:
     Type: String
     Description: ID of the VPC for the Lambda functions
+  VpcRegion:
+    Type: String
+    Description: Region of the VPC for the Lambda functions
+  DelegationSetId:
+    Type: String
+    Description: ID of the Route 53 delegation set
   SubnetIds:
     Type: List<String>
     Description: List of subnet IDs for the Lambda functions
@@ -232,8 +238,21 @@ Resources:
               "CreateWorkMailOrgFunction": {
                 "Type": "Task",
                 "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CreateWorkMailOrgFunction}",
-                "Next": "CreateIamUserFunction",
+                "Next": "CreateHostedZoneFunction",
                 "ResultPath": "$.createWorkMailOrgResult",
+                "Catch": [
+                  {
+                    "ErrorEquals": ["States.ALL"],
+                    "Next": "HandleError"
+                  }
+                ]
+              },
+              "CreateHostedZoneFunction": {
+                "Type": "Task",
+                "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CreateHostedZoneFunction}",
+                "Next": "CreateIamUserFunction",
+                "InputPath": "$.createWorkMailOrgResult",
+                "ResultPath": "$.createHostedZoneResult",
                 "Catch": [
                   {
                     "ErrorEquals": ["States.ALL"],
@@ -245,7 +264,7 @@ Resources:
                 "Type": "Task",
                 "Resource": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CreateIamUserFunction}",
                 "Next": "CheckDomainVerificationFunction",
-                "InputPath": "$.createWorkMailOrgResult",
+                "InputPath": "$.createHostedZoneResult",
                 "ResultPath": "$.createIamUserResult",
                 "Catch": [
                   {
@@ -375,9 +394,33 @@ Resources:
           KEAP_BASE_URL: !Ref KeapBaseUrl
           PROXY_ENDPOINT: !Ref ProxyEndpoint
           PROXY_ENDPOINT_HOST: !Ref ProxyEndpointHost
+          VPC_ID: !Ref VpcId
+          VPC_REGION: !Ref VpcRegion
+          DELEGATION_SET_ID: !Ref DelegationSetId
       VpcConfig:
         SecurityGroupIds: !Ref SecurityGroupIds
         SubnetIds: !Ref SubnetIds
+
+  CreateHostedZoneFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: create_hosted_zone_function/
+      Handler: app.lambda_handler
+      AutoPublishAlias: latest
+      DeploymentPreference:
+        Enabled: true
+        Type: AllAtOnce
+      PackageType: Zip
+      Layers:
+        - !Ref WorkmailCommonLayer
+      Role: arn:aws:iam::930751528773:role/Lambda_DevTest_Role # TODO: REMOVE after determining least privilege.
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          VPC_ID: !Ref VpcId
+          VPC_REGION: !Ref VpcRegion
+          DELEGATION_SET_ID: !Ref DelegationSetId
 
   # Lambda function to create IAM User
   CreateIamUserFunction:
@@ -392,11 +435,20 @@ Resources:
       PackageType: Zip
       Layers:
         - !Ref WorkmailCommonLayer
-      Role: arn:aws:iam::930751528773:role/Lambda_DevTest_Role # TODO: REMOVE after determining least privilege.
       Policies:
         - AWSLambdaBasicExecutionRole
         - AWSLambdaVPCAccessExecutionRole
         - AWSXRayDaemonWriteAccess
+        - Statement:
+          - Effect: "Allow"
+            Action:
+            - iam:CreateUser
+            - iam:CreateAccessKey
+            - iam:PutUserPolicy
+            - cloudwatch:CreateLogStream
+            - kms:Decrypt
+            - secretsmanager:GetSecretValue
+            Resource: "*"
       Environment:
         Variables:
           AWS_ACCOUNT_ID: !Ref AWS::AccountId
