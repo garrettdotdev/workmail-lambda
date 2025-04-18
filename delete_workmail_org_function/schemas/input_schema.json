@@ -9,5 +9,5 @@
     }
   },
   "required": ["contact_id", "vanity_name"],
-  "additionalProperties": false
+  "additionalProperties": true
 }

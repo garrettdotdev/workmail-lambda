@@ -27,5 +27,5 @@
     }
   },
   "required": ["contact_id", "organization_id", "email_username", "vanity_name", "email_address", "first_name", "last_name"],
-  "additionalProperties": false
+  "additionalProperties": true
 }

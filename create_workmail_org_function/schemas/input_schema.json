@@ -12,5 +12,5 @@
     }
   },
   "required": ["contact_id", "email_username", "vanity_name"],
-  "additionalProperties": false
+  "additionalProperties": true
 }
