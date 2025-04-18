@@ -97,6 +97,7 @@ def get_aws_clients() -> Dict[str, Any]:
             ),
             "ses_client": boto3.client("ses", config=client_config),
             "workmail_client": boto3.client("workmail", config=client_config),
+            "route53_client": boto3.client("route53", config=client_config),
         }
     except Exception as e:
         raise
