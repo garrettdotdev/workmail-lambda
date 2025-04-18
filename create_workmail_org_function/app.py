@@ -88,6 +88,9 @@ def get_config():
         "KEAP_TAG_PENDING",
         "PROXY_ENDPOINT",
         "PROXY_ENDPOINT_HOST",
+        "VPC_ID",
+        "VPC_REGION",
+        "DELEGATION_SET_ID",
     ]
     config = {}
     for var in required_vars:
@@ -246,11 +249,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             aws_clients["workmail_client"],
         )
 
-        updates = prepare_keap_updates(dns_records)
+        # updates = prepare_keap_updates(dns_records)
 
-        keap_contact_create_note_via_proxy(
-            contact_id, "workmail_dns_records", updates, config=config
-        )
+        # keap_contact_create_note_via_proxy(
+        #     contact_id, "workmail_dns_records", updates, config=config
+        # )
 
         keap_contact_add_to_group_via_proxy(
             contact_id, int(config["KEAP_TAG_PENDING"]), config=config
@@ -267,6 +270,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "email_address": email_address,
             "first_name": first_name,
             "last_name": last_name,
+            "dns_records": dns_records,
         }
     except Exception as e:
         logger.exception(str(e))
